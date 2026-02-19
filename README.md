@@ -47,6 +47,15 @@ go-backend/
 - 轨迹分类和分析
 - 行政区划统计
 - 停留检测
+- **Go 原生分析技能 (8/30 已实现):**
+  - footprint_statistics: 足迹统计
+  - stay_statistics: 停留统计
+  - extreme_events: 极值事件
+  - speed_space_coupling: 速度-空间耦合
+  - revisit_pattern: 重访模式
+  - **speed_events: 速度事件检测 (NEW)**
+  - **rendering_metadata: 渲染元数据生成 (NEW)**
+  - **stay_annotation: 停留标注与建议 (NEW)**
 
 ### 2. 键盘鼠标统计 (Keyboard)
 - 键盘鼠标使用数据统计
@@ -109,6 +118,11 @@ JWT_SECRET=your-secret-key         # JWT 密钥
 ### 轨迹接口
 - `GET /api/v1/tracks` - 获取轨迹列表
 - `POST /api/v1/tracks` - 创建轨迹
+- **`POST /api/v1/analysis/tasks` - 创建分析任务 (NEW)**
+  - 支持的 skill_name: speed_events, rendering_metadata, stay_annotation, footprint_statistics, stay_statistics, extreme_events, speed_space_coupling, revisit_pattern
+  - 参数: skill_name, mode (incremental/full_recompute)
+- **`GET /api/v1/analysis/tasks/:id` - 查询任务状态 (NEW)**
+- **`GET /api/v1/analysis/tasks` - 获取任务列表 (NEW)**
 
 ### 键盘鼠标接口
 - `GET /api/v1/keyboard/stats` - 获取统计数据
@@ -128,6 +142,13 @@ JWT_SECRET=your-secret-key         # JWT 密钥
 - WAL 模式开启
 - 小连接池配置
 - 支持地理空间扩展
+
+**轨迹分析表 (Phase 2 新增):**
+- `speed_events`: 高速事件记录（max_speed, avg_speed, duration, location, confidence）
+- `stay_annotations`: 停留标注（label, sub_label, note, confirmed）
+- `stay_context_cache`: 停留上下文缓存（context_json, suggestions_json）
+- `place_anchors`: 地点锚点（HOME/WORK等，grid_id, radius）
+- `render_segments_cache`: 渲染缓存（speed_bucket, overlap_rank, style hints）
 
 ## 权限模型
 
@@ -151,6 +172,46 @@ JWT_SECRET=your-secret-key         # JWT 密钥
 - 机器学习模型训练
 
 ## 更新日志
+
+### 2026-02-20 - Phase 2: 实现3个轨迹分析技能
+
+**新增功能：**
+1. **speed_events (速度事件检测)**
+   - 基于 CAR segments 检测高速事件
+   - 状态机算法，支持事件级检测（连续高速段）
+   - 参数化阈值：min_event_speed=33.33 m/s (120 km/h), min_event_duration=60s
+   - 输出：max_speed, avg_speed, duration, location, confidence, reason_codes
+
+2. **rendering_metadata (渲染元数据生成)**
+   - 为地图渲染生成可视化元数据
+   - 速度分桶（0-5）基于全局百分位数
+   - 重叠统计（基于 grid_id）
+   - 样式提示：line_weight (1.0-3.0), alpha_hint (0.3-1.0)
+   - 支持3个 LOD 级别
+
+3. **stay_annotation (停留标注与建议)**
+   - 生成停留上下文卡片（时间、地点、到达/离开上下文）
+   - 规则引擎生成标签建议（HOME/WORK/EAT/SLEEP/TRANSIT）
+   - 支持历史标注复用和地点锚点机制
+   - 输出可解释的建议（confidence + reasons）
+
+**数据库变更：**
+- 新增5个表：speed_events, stay_annotations, stay_context_cache, place_anchors, render_segments_cache
+- 迁移文件：011_create_phase2_tables.sql
+
+**框架更新：**
+- incremental.go: 新增 MarkTaskAsCompleted(支持结果摘要), UpdateTaskProgress 方法
+- main.go: 导入所有分析器包以触发注册
+
+**进度：**
+- 8/30 技能完成 (26.7%)
+- Phase 1 + Phase 2 完成
+- 准备进入 Phase 3（中等难度迁移）
+
+**性能预期：**
+- speed_events: ~100 segments/sec, <50MB 内存
+- rendering_metadata: ~50 segments/sec, <100MB 内存
+- stay_annotation: ~20 stays/sec, <50MB 内存
 
 ### 2026-02-19
 - 初始化项目结构
