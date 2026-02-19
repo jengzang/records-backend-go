@@ -47,15 +47,23 @@ go-backend/
 - 轨迹分类和分析
 - 行政区划统计
 - 停留检测
-- **Go 原生分析技能 (8/30 已实现):**
-  - footprint_statistics: 足迹统计
-  - stay_statistics: 停留统计
-  - extreme_events: 极值事件
-  - speed_space_coupling: 速度-空间耦合
-  - revisit_pattern: 重访模式
-  - **speed_events: 速度事件检测 (NEW)**
-  - **rendering_metadata: 渲染元数据生成 (NEW)**
-  - **stay_annotation: 停留标注与建议 (NEW)**
+- **Go 原生分析技能 (13/30 已实现 - 43.3%):**
+  - **Phase 1 (5 skills):**
+    - footprint_statistics: 足迹统计
+    - stay_statistics: 停留统计
+    - extreme_events: 极值事件
+    - speed_space_coupling: 速度-空间耦合
+    - revisit_pattern: 重访模式
+  - **Phase 2 (3 skills):**
+    - speed_events: 速度事件检测
+    - rendering_metadata: 渲染元数据生成
+    - stay_annotation: 停留标注与建议
+  - **Phase 3 (5 skills - NEW):**
+    - outlier_detection: 异常点检测 (Z-score & IQR)
+    - trajectory_completion: 轨迹补全 (线性插值)
+    - transport_mode: 交通方式识别 (速度分类)
+    - streak_detection: 连续活动检测
+    - grid_system: 网格系统 (Geohash 空间索引)
 
 ### 2. 键盘鼠标统计 (Keyboard)
 - 键盘鼠标使用数据统计
@@ -172,6 +180,62 @@ JWT_SECRET=your-secret-key         # JWT 密钥
 - 机器学习模型训练
 
 ## 更新日志
+
+### 2026-02-20 - Phase 3: 迁移5个Python技能到Go
+
+**新增功能：**
+1. **outlier_detection (异常点检测)**
+   - Z-score 方法：|z| > 3 标记为异常
+   - IQR 方法：Q1 - 1.5*IQR 或 Q3 + 1.5*IQR 标记为异常
+   - 速度异常：speed > 200 km/h (55.56 m/s)
+   - 精度异常：accuracy > 1000m
+   - 更新 track_points 表的 outlier_flag 列
+
+2. **trajectory_completion (轨迹补全)**
+   - 检测时间间隔 > 5分钟的轨迹间隙
+   - 线性插值填补 ≤ 30分钟的间隙
+   - 插值字段：latitude, longitude, altitude, speed
+   - 标记为 qa_status='interpolated'
+
+3. **transport_mode (交通方式识别)**
+   - 基于速度的分类算法
+   - 阈值：WALK (0-2 m/s), BIKE (2-8 m/s), CAR (8-40 m/s), TRAIN (40-60 m/s), PLANE (>60 m/s)
+   - 生成 segments 表记录
+   - 最小段长度：10秒
+
+4. **streak_detection (连续活动检测)**
+   - 检测连续活动天数（≥2天）
+   - 最小活动阈值：1km/天
+   - 输出：start_date, end_date, days_count, total_distance, total_duration
+   - 新增 streaks 表
+
+5. **grid_system (网格系统)**
+   - Geohash 空间索引（精度 4-7）
+   - 聚合统计：visit_count, total_duration, first/last visit
+   - 填充 grid_cells 表
+   - 支持多精度级别分析
+
+**数据库变更：**
+- 新增表：streaks (连续活动记录)
+- 迁移文件：012_create_streaks_table.sql
+
+**框架更新：**
+- 新增 internal/analysis/foundation/ 包（outlier_detection, trajectory_completion）
+- 扩展 internal/analysis/behavior/ 包（transport_mode, streak_detection）
+- 扩展 internal/analysis/spatial/ 包（grid_system）
+- main.go: 导入 foundation 包
+
+**进度：**
+- 13/30 技能完成 (43.3%)
+- Phase 1 + Phase 2 + Phase 3 完成
+- 准备进入 Phase 4（新 Go 技能实现）
+
+**性能预期：**
+- outlier_detection: ~10k points/sec
+- trajectory_completion: ~5k points/sec (含插入)
+- transport_mode: ~10k points/sec
+- streak_detection: ~50k points/sec (聚合)
+- grid_system: ~5k points/sec (含 geohash)
 
 ### 2026-02-20 - Phase 2: 实现3个轨迹分析技能
 
