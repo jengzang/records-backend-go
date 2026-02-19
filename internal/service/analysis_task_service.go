@@ -1,12 +1,15 @@
 package service
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os/exec"
 	"strconv"
 
+	"github.com/jengzang/records-backend-go/internal/analysis"
 	"github.com/jengzang/records-backend-go/internal/models"
 	"github.com/jengzang/records-backend-go/internal/repository"
 )
@@ -14,11 +17,15 @@ import (
 // AnalysisTaskService handles analysis task business logic
 type AnalysisTaskService struct {
 	repo *repository.AnalysisTaskRepository
+	db   *sql.DB
 }
 
 // NewAnalysisTaskService creates a new analysis task service
-func NewAnalysisTaskService(repo *repository.AnalysisTaskRepository) *AnalysisTaskService {
-	return &AnalysisTaskService{repo: repo}
+func NewAnalysisTaskService(repo *repository.AnalysisTaskRepository, db *sql.DB) *AnalysisTaskService {
+	return &AnalysisTaskService{
+		repo: repo,
+		db:   db,
+	}
 }
 
 // CreateTask creates a new analysis task and starts the Python worker
@@ -76,15 +83,58 @@ func (s *AnalysisTaskService) CreateTask(skillName string, taskType string, para
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
 
-	// Start Python Docker container asynchronously
+	// Start analysis worker asynchronously (Go or Python)
 	go s.startAnalysisWorker(task.ID, skillName, taskType)
 
 	return task, nil
 }
 
-// startAnalysisWorker starts the Python analysis worker in a Docker container
+// startAnalysisWorker starts the analysis worker (Go or Python)
 func (s *AnalysisTaskService) startAnalysisWorker(taskID int64, skillName string, taskType string) {
 	log.Printf("Starting analysis worker for task %d (skill: %s, type: %s)", taskID, skillName, taskType)
+
+	// Check if skill is implemented in Go
+	if analysis.IsGoNativeSkill(skillName) {
+		// Execute in Go (in-process)
+		s.executeGoAnalysis(taskID, skillName, taskType)
+	} else {
+		// Execute in Python Docker container
+		s.executePythonWorker(taskID, skillName, taskType)
+	}
+}
+
+// executeGoAnalysis executes a Go-native analysis skill
+func (s *AnalysisTaskService) executeGoAnalysis(taskID int64, skillName string, taskType string) {
+	log.Printf("Executing Go analysis for task %d (skill: %s)", taskID, skillName)
+
+	// Get analyzer instance
+	analyzer := analysis.GetAnalyzer(skillName, s.db)
+	if analyzer == nil {
+		log.Printf("Failed to get analyzer for skill: %s", skillName)
+		s.repo.MarkAsFailed(taskID, fmt.Sprintf("Unknown skill: %s", skillName))
+		return
+	}
+
+	// Execute analysis
+	mode := "incremental"
+	if taskType == models.TaskTypeFullRecompute {
+		mode = "full"
+	}
+
+	ctx := context.Background()
+	err := analyzer.Analyze(ctx, taskID, mode)
+	if err != nil {
+		log.Printf("Go analysis failed for task %d: %v", taskID, err)
+		s.repo.MarkAsFailed(taskID, fmt.Sprintf("Analysis failed: %v", err))
+		return
+	}
+
+	log.Printf("Go analysis completed for task %d", taskID)
+}
+
+// executePythonWorker starts the Python analysis worker in a Docker container
+func (s *AnalysisTaskService) executePythonWorker(taskID int64, skillName string, taskType string) {
+	log.Printf("Executing Python worker for task %d (skill: %s)", taskID, skillName)
 
 	// Docker run command
 	// docker run --rm \
