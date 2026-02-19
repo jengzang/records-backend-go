@@ -49,9 +49,28 @@ dist/
 build/
 
 # Data files (keep structure, ignore actual data)
+data/**/*.db
 data/**/*.db-shm
 data/**/*.db-wal
+data/**/*.sqlite
+data/**/*.sqlite3
+data/**/*.csv
+data/**/*.xlsx
+data/**/*.xls
+data/**/*.json
+data/**/*.kml
+data/**/*.gpx
+data/**/*.xml
+data/**/*.txt
+data/**/*.ini
 *.log
+
+# Keep directory structure but ignore shapefile data
+data/shapefiles/**/*.shp
+data/shapefiles/**/*.shx
+data/shapefiles/**/*.dbf
+data/shapefiles/**/*.prj
+data/shapefiles/**/*.cpg
 
 # OS
 .DS_Store

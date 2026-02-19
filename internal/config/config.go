@@ -21,7 +21,7 @@ func Load() *Config {
 
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
-		dbPath = "./data/records.db"
+		dbPath = "./data/tracks/tracks.db"
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
