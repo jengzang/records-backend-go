@@ -30,14 +30,20 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	// Initialize repositories
 	trackRepo := repository.NewTrackRepository(db)
 	statsRepo := repository.NewStatsRepository(db)
+	geocodingRepo := repository.NewGeocodingRepository(db)
+	analysisTaskRepo := repository.NewAnalysisTaskRepository(db)
 
 	// Initialize services
 	trackService := service.NewTrackService(trackRepo)
 	statsService := service.NewStatsService(statsRepo)
+	geocodingService := service.NewGeocodingService(geocodingRepo)
+	analysisTaskService := service.NewAnalysisTaskService(analysisTaskRepo)
 
 	// Initialize handlers
 	trackHandler := handler.NewTrackHandler(trackService)
 	statsHandler := handler.NewStatsHandler(statsService)
+	geocodingHandler := handler.NewGeocodingHandler(geocodingService)
+	analysisTaskHandler := handler.NewAnalysisTaskHandler(analysisTaskService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -97,6 +103,29 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			healthData.GET("/stats", func(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"message": "health data stats - not implemented yet"})
 			})
+		}
+
+		// 管理员接口
+		admin := api.Group("/admin")
+		{
+			// Geocoding tasks management
+			geocoding := admin.Group("/geocoding")
+			{
+				geocoding.POST("/tasks", geocodingHandler.CreateTask)
+				geocoding.GET("/tasks", geocodingHandler.ListTasks)
+				geocoding.GET("/tasks/:id", geocodingHandler.GetTask)
+				geocoding.DELETE("/tasks/:id", geocodingHandler.CancelTask)
+			}
+
+			// Analysis tasks management
+			analysis := admin.Group("/analysis")
+			{
+				analysis.POST("/tasks", analysisTaskHandler.CreateTask)
+				analysis.GET("/tasks", analysisTaskHandler.ListTasks)
+				analysis.GET("/tasks/:id", analysisTaskHandler.GetTask)
+				analysis.DELETE("/tasks/:id", analysisTaskHandler.CancelTask)
+				analysis.POST("/trigger-chain", analysisTaskHandler.TriggerAnalysisChain)
+			}
 		}
 	}
 

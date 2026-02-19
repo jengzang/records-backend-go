@@ -1,37 +1,61 @@
 package models
 
-// Trip represents a trip constructed from stays
+import "time"
+
+// Trip represents a trip construction result (origin-destination pair)
 type Trip struct {
-	ID        int64  `json:"id" db:"id"`
-	StartTime int64  `json:"startTime" db:"start_time"`  // Unix timestamp
-	EndTime   int64  `json:"endTime" db:"end_time"`      // Unix timestamp
-	Duration  int64  `json:"duration" db:"duration"`     // Duration in seconds
-	Distance  float64 `json:"distance" db:"distance"`    // Total distance in meters
+	ID int64 `json:"id" db:"id"`
 
-	// Origin
-	OriginLongitude float64 `json:"originLongitude" db:"origin_longitude"`
-	OriginLatitude  float64 `json:"originLatitude" db:"origin_latitude"`
-	OriginProvince  string  `json:"originProvince,omitempty" db:"origin_province"`
-	OriginCity      string  `json:"originCity,omitempty" db:"origin_city"`
-	OriginCounty    string  `json:"originCounty,omitempty" db:"origin_county"`
+	// Trip identification
+	Date       string `json:"date" db:"date"`               // YYYY-MM-DD
+	TripNumber int    `json:"trip_number" db:"trip_number"` // 1st, 2nd, 3rd trip of the day
 
-	// Destination
-	DestLongitude float64 `json:"destLongitude" db:"dest_longitude"`
-	DestLatitude  float64 `json:"destLatitude" db:"dest_latitude"`
-	DestProvince  string  `json:"destProvince,omitempty" db:"dest_province"`
-	DestCity      string  `json:"destCity,omitempty" db:"dest_city"`
-	DestCounty    string  `json:"destCounty,omitempty" db:"dest_county"`
+	// Temporal info
+	StartTime       int64 `json:"start_time" db:"start_time"`             // Unix timestamp
+	EndTime         int64 `json:"end_time" db:"end_time"`                 // Unix timestamp
+	DurationSeconds int64 `json:"duration_seconds" db:"duration_seconds"` // Duration in seconds
 
-	// Trip classification
-	TripType       string  `json:"tripType,omitempty" db:"trip_type"`             // e.g., "commute", "travel", "errand"
-	TransportMode  string  `json:"transportMode,omitempty" db:"transport_mode"`   // e.g., "walk", "bike", "car", "train", "plane"
-	Confidence     float64 `json:"confidence,omitempty" db:"confidence"`          // 0.0 to 1.0
-	PointCount     int     `json:"pointCount,omitempty" db:"point_count"`         // Number of GPS points in this trip
+	// Origin and destination
+	OriginStayID int64   `json:"origin_stay_id,omitempty" db:"origin_stay_id"` // Foreign key to stay_segments
+	DestStayID   int64   `json:"dest_stay_id,omitempty" db:"dest_stay_id"`     // Foreign key to stay_segments
+	OriginLat    float64 `json:"origin_lat,omitempty" db:"origin_lat"`
+	OriginLon    float64 `json:"origin_lon,omitempty" db:"origin_lon"`
+	DestLat      float64 `json:"dest_lat,omitempty" db:"dest_lat"`
+	DestLon      float64 `json:"dest_lon,omitempty" db:"dest_lon"`
+
+	// Administrative divisions
+	OriginProvince string `json:"origin_province,omitempty" db:"origin_province"`
+	OriginCity     string `json:"origin_city,omitempty" db:"origin_city"`
+	OriginCounty   string `json:"origin_county,omitempty" db:"origin_county"`
+	DestProvince   string `json:"dest_province,omitempty" db:"dest_province"`
+	DestCity       string `json:"dest_city,omitempty" db:"dest_city"`
+	DestCounty     string `json:"dest_county,omitempty" db:"dest_county"`
+
+	// Trip characteristics
+	DistanceMeters float64 `json:"distance_meters,omitempty" db:"distance_meters"`
+	AvgSpeedKmh    float64 `json:"avg_speed_kmh,omitempty" db:"avg_speed_kmh"`
+	MaxSpeedKmh    float64 `json:"max_speed_kmh,omitempty" db:"max_speed_kmh"`
+	PrimaryMode    string  `json:"primary_mode,omitempty" db:"primary_mode"` // Dominant transport mode
+
+	// Segments involved
+	SegmentIDs string `json:"segment_ids,omitempty" db:"segment_ids"` // JSON array of segment IDs
+
+	// Trip type
+	TripType    string `json:"trip_type,omitempty" db:"trip_type"` // INTRA_CITY, INTER_CITY, INTER_PROVINCE
+	IsRoundTrip bool   `json:"is_round_trip" db:"is_round_trip"`
 
 	// Metadata
-	CreatedAt   string `json:"createdAt,omitempty" db:"created_at"`
-	AlgoVersion string `json:"algoVersion,omitempty" db:"algo_version"`
+	AlgoVersion string    `json:"algo_version,omitempty" db:"algo_version"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
+
+// TripType constants
+const (
+	TripTypeIntraCity     = "INTRA_CITY"
+	TripTypeInterCity     = "INTER_CITY"
+	TripTypeInterProvince = "INTER_PROVINCE"
+)
 
 // TripsResponse represents a paginated response of trips
 type TripsResponse struct {
@@ -49,7 +73,7 @@ type TripFilter struct {
 	OriginCity    string  `form:"originCity"`
 	DestCity      string  `form:"destCity"`
 	MinDistance   float64 `form:"minDistance"`
-	TransportMode string  `form:"transportMode"`
+	PrimaryMode   string  `form:"primaryMode"`
 	TripType      string  `form:"tripType"`
 	Page          int     `form:"page"`
 	PageSize      int     `form:"pageSize"`

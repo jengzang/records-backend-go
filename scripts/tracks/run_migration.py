@@ -1,69 +1,112 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Database migration script to add administrative division columns.
-Run this script to update the tracks database schema.
+Migration runner for trajectory analysis database schema
+Executes SQL migration files in order
 """
 
 import sqlite3
+import os
 import sys
 from pathlib import Path
 
-def run_migration(db_path: str, migration_file: str):
-    """Run a SQL migration file against the database."""
-    try:
-        # Read migration SQL
-        with open(migration_file, 'r', encoding='utf-8') as f:
-            migration_sql = f.read()
+def run_migrations(db_path, migrations_dir, start_from=None):
+    """Run all migration files in order
 
-        # Connect to database
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
+    Args:
+        db_path: Path to SQLite database
+        migrations_dir: Directory containing migration files
+        start_from: Optional migration number to start from (e.g., 4 to start from 004_*.sql)
+    """
 
-        # Enable WAL mode
-        cursor.execute("PRAGMA journal_mode=WAL")
+    # Connect to database
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
-        # Execute migration
-        print(f"Running migration: {migration_file}")
-        cursor.executescript(migration_sql)
+    # Enable WAL mode
+    cursor.execute("PRAGMA journal_mode=WAL")
 
-        conn.commit()
-        print("Migration completed successfully!")
+    # Get list of migration files
+    migration_files = sorted([
+        f for f in os.listdir(migrations_dir)
+        if f.endswith('.sql') and f[0].isdigit()
+    ])
 
-        # Verify columns were added
-        cursor.execute("PRAGMA table_info(\"一生足迹\")")
-        columns = cursor.fetchall()
-        print(f"\nTable now has {len(columns)} columns:")
-        for col in columns:
-            print(f"  - {col[1]} ({col[2]})")
+    # Filter by start_from if specified
+    if start_from:
+        migration_files = [f for f in migration_files if int(f.split('_')[0]) >= start_from]
 
-        conn.close()
-        return True
+    print(f"Found {len(migration_files)} migration files to execute")
 
-    except Exception as e:
-        print(f"Error running migration: {e}", file=sys.stderr)
-        return False
+    for migration_file in migration_files:
+        migration_path = os.path.join(migrations_dir, migration_file)
+        print(f"\nExecuting: {migration_file}")
+
+        try:
+            with open(migration_path, 'r', encoding='utf-8') as f:
+                sql = f.read()
+
+            # Execute migration
+            cursor.executescript(sql)
+            conn.commit()
+            print(f"[OK] {migration_file} completed successfully")
+
+        except Exception as e:
+            print(f"[FAIL] {migration_file} failed: {e}")
+            conn.rollback()
+            # Continue with next migration instead of stopping
+            continue
+    
+    # Verify tables were created
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table'
+        ORDER BY name
+    """)
+    tables = [row[0] for row in cursor.fetchall()]
+
+    print(f"\n=== Database Tables ({len(tables)}) ===")
+    for table in tables:
+        cursor.execute(f'SELECT COUNT(*) FROM "{table}"')
+        count = cursor.fetchone()[0]
+        print(f"  {table}: {count} rows")
+
+    conn.close()
+    return True
 
 if __name__ == "__main__":
-    # Paths
+    # Get paths
     script_dir = Path(__file__).parent
+    migrations_dir = script_dir / "migrations"
     db_path = script_dir.parent.parent / "data" / "tracks" / "tracks.db"
 
-    # Check if migration file is provided as argument
-    if len(sys.argv) > 1:
-        migration_file = script_dir / "migrations" / sys.argv[1]
-    else:
-        migration_file = script_dir / "migrations" / "002_add_metadata_and_indexes.sql"
-
     print(f"Database: {db_path}")
-    print(f"Migration: {migration_file}")
+    print(f"Migrations: {migrations_dir}")
 
     if not db_path.exists():
-        print(f"Error: Database not found at {db_path}", file=sys.stderr)
+        print(f"Error: Database not found at {db_path}")
         sys.exit(1)
 
-    if not migration_file.exists():
-        print(f"Error: Migration file not found at {migration_file}", file=sys.stderr)
+    if not migrations_dir.exists():
+        print(f"Error: Migrations directory not found at {migrations_dir}")
         sys.exit(1)
 
-    success = run_migration(str(db_path), str(migration_file))
-    sys.exit(0 if success else 1)
+    # Check if user wants to start from a specific migration
+    start_from = None
+    if len(sys.argv) > 1:
+        try:
+            start_from = int(sys.argv[1])
+            print(f"Starting from migration {start_from:03d}")
+        except ValueError:
+            print(f"Invalid migration number: {sys.argv[1]}")
+            sys.exit(1)
+
+    # Run migrations
+    success = run_migrations(str(db_path), str(migrations_dir), start_from)
+
+    if success:
+        print("\n[OK] All migrations completed successfully!")
+        sys.exit(0)
+    else:
+        print("\n[FAIL] Migration failed!")
+        sys.exit(1)

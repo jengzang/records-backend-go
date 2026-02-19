@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Go backend service
+  go-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: records-go-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      - DB_PATH=/data/tracks/tracks.db
+      - GIN_MODE=release
+    restart: unless-stopped
+    networks:
+      - records-network
+
+  # Python geocoding service (not running by default, started on-demand by Go)
+  # This service definition is used to build the image
+  geocoding:
+    build:
+      context: .
+      dockerfile: Dockerfile.geocoding
+    image: records-geocoding:latest
+    container_name: records-geocoding
+    volumes:
+      - ./data/tracks:/data
+      - ./data/geo:/geo
+    networks:
+      - records-network
+    # No restart policy - this container is started on-demand
+    profiles:
+      - manual  # This prevents it from starting with docker-compose up
+
+networks:
+  records-network:
+    driver: bridge

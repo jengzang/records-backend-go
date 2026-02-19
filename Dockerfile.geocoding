@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+# Install system dependencies for GDAL
+RUN apt-get update && apt-get install -y \
+    gdal-bin \
+    libgdal-dev \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set GDAL environment variables
+ENV GDAL_CONFIG=/usr/bin/gdal-config
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
+ENV C_INCLUDE_PATH=/usr/include/gdal
+
+# Install Python dependencies
+COPY requirements-geocoding.txt /app/
+WORKDIR /app
+RUN pip install --no-cache-dir -r requirements-geocoding.txt
+
+# Copy geocoding scripts
+COPY scripts/geocoding/geocode_worker.py /app/
+
+# Set working directory
+WORKDIR /app
+
+# Default command (will be overridden by docker run)
+CMD ["python", "geocode_worker.py", "--help"]

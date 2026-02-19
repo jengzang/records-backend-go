@@ -1,76 +1,128 @@
 package models
 
-// FootprintStatistics represents footprint statistics at different administrative levels
+import "time"
+
+// FootprintStatistics represents aggregated footprint statistics
 type FootprintStatistics struct {
-	// Time range
-	StartTime int64 `json:"startTime" db:"start_time"`
-	EndTime   int64 `json:"endTime" db:"end_time"`
+	ID int64 `json:"id" db:"id"`
 
-	// Province level statistics
-	ProvinceCount int      `json:"provinceCount" db:"province_count"`
-	Provinces     []string `json:"provinces,omitempty"`
+	// Aggregation dimensions
+	StatType  string `json:"stat_type" db:"stat_type"`   // PROVINCE, CITY, COUNTY, TOWN, GRID
+	StatKey   string `json:"stat_key" db:"stat_key"`     // Province/city/county/town name or grid_id
+	TimeRange string `json:"time_range,omitempty" db:"time_range"` // YYYY, YYYY-MM, YYYY-MM-DD, or ALL
 
-	// City level statistics
-	CityCount int      `json:"cityCount" db:"city_count"`
-	Cities    []string `json:"cities,omitempty"`
+	// Spatial info
+	Province string `json:"province,omitempty" db:"province"`
+	City     string `json:"city,omitempty" db:"city"`
+	County   string `json:"county,omitempty" db:"county"`
+	Town     string `json:"town,omitempty" db:"town"`
 
-	// County level statistics
-	CountyCount int      `json:"countyCount" db:"county_count"`
-	Counties    []string `json:"counties,omitempty"`
+	// Statistics
+	PointCount          int     `json:"point_count" db:"point_count"`
+	VisitCount          int     `json:"visit_count" db:"visit_count"`
+	TotalDistanceMeters float64 `json:"total_distance_meters" db:"total_distance_meters"`
+	TotalDurationSeconds int64  `json:"total_duration_seconds" db:"total_duration_seconds"`
+	FirstVisitTime      int64   `json:"first_visit_time,omitempty" db:"first_visit_time"` // Unix timestamp
+	LastVisitTime       int64   `json:"last_visit_time,omitempty" db:"last_visit_time"`   // Unix timestamp
 
-	// Town level statistics
-	TownCount int      `json:"townCount" db:"town_count"`
-	Towns     []string `json:"towns,omitempty"`
-
-	// Village level statistics
-	VillageCount int      `json:"villageCount" db:"village_count"`
-	Villages     []string `json:"villages,omitempty"`
-
-	// Total points
-	TotalPoints int64 `json:"totalPoints" db:"total_points"`
+	// Rankings
+	RankByPoints   int `json:"rank_by_points,omitempty" db:"rank_by_points"`
+	RankByVisits   int `json:"rank_by_visits,omitempty" db:"rank_by_visits"`
+	RankByDuration int `json:"rank_by_duration,omitempty" db:"rank_by_duration"`
 
 	// Metadata
-	GeneratedAt string `json:"generatedAt" db:"generated_at"`
+	AlgoVersion string    `json:"algo_version,omitempty" db:"algo_version"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// StayStatistics represents stay statistics at different administrative levels
+// StayStatistics represents aggregated stay statistics
 type StayStatistics struct {
-	// Time range
-	StartTime int64 `json:"startTime" db:"start_time"`
-	EndTime   int64 `json:"endTime" db:"end_time"`
+	ID int64 `json:"id" db:"id"`
 
-	// Administrative level
-	AdminLevel string `json:"adminLevel" db:"admin_level"`  // "province", "city", "county", "town", "village"
-	AdminName  string `json:"adminName" db:"admin_name"`
+	// Aggregation dimensions
+	StatType  string `json:"stat_type" db:"stat_type"`   // PROVINCE, CITY, COUNTY, CATEGORY
+	StatKey   string `json:"stat_key" db:"stat_key"`
+	TimeRange string `json:"time_range,omitempty" db:"time_range"`
 
-	// Stay statistics
-	TotalStays      int   `json:"totalStays" db:"total_stays"`
-	TotalDuration   int64 `json:"totalDuration" db:"total_duration"`      // Total duration in seconds
-	AverageDuration int64 `json:"averageDuration" db:"average_duration"`  // Average duration in seconds
-	LongestStay     int64 `json:"longestStay" db:"longest_stay"`          // Longest stay in seconds
+	// Spatial info
+	Province string `json:"province,omitempty" db:"province"`
+	City     string `json:"city,omitempty" db:"city"`
+	County   string `json:"county,omitempty" db:"county"`
+
+	// Statistics
+	StayCount            int     `json:"stay_count" db:"stay_count"`
+	TotalDurationSeconds int64   `json:"total_duration_seconds" db:"total_duration_seconds"`
+	AvgDurationSeconds   float64 `json:"avg_duration_seconds,omitempty" db:"avg_duration_seconds"`
+	MaxDurationSeconds   int64   `json:"max_duration_seconds,omitempty" db:"max_duration_seconds"`
+	StayCategory         string  `json:"stay_category,omitempty" db:"stay_category"` // For CATEGORY stat_type
+
+	// Rankings
+	RankByCount    int `json:"rank_by_count,omitempty" db:"rank_by_count"`
+	RankByDuration int `json:"rank_by_duration,omitempty" db:"rank_by_duration"`
 
 	// Metadata
-	GeneratedAt string `json:"generatedAt" db:"generated_at"`
+	AlgoVersion string    `json:"algo_version,omitempty" db:"algo_version"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// TimeDistribution represents time-based distribution statistics
-type TimeDistribution struct {
-	Hour  int   `json:"hour" db:"hour"`    // 0-23
-	Count int64 `json:"count" db:"count"`
+// ExtremeEvent represents an extreme event (max altitude, speed, etc.)
+type ExtremeEvent struct {
+	ID int64 `json:"id" db:"id"`
+
+	// Event type
+	EventType     string `json:"event_type" db:"event_type"`         // MAX_ALTITUDE, MAX_SPEED, NORTHMOST, SOUTHMOST, EASTMOST, WESTMOST
+	EventCategory string `json:"event_category" db:"event_category"` // SPATIAL, SPEED, ALTITUDE
+
+	// Event details
+	PointID    int64   `json:"point_id" db:"point_id"`       // Foreign key to track point
+	EventTime  int64   `json:"event_time" db:"event_time"`   // Unix timestamp
+	EventValue float64 `json:"event_value" db:"event_value"` // Altitude/speed/latitude/longitude
+
+	// Location
+	Latitude  float64 `json:"latitude" db:"latitude"`
+	Longitude float64 `json:"longitude" db:"longitude"`
+	Province  string  `json:"province,omitempty" db:"province"`
+	City      string  `json:"city,omitempty" db:"city"`
+	County    string  `json:"county,omitempty" db:"county"`
+
+	// Context
+	Mode      string `json:"mode,omitempty" db:"mode"`           // Transport mode at the time
+	SegmentID int64  `json:"segment_id,omitempty" db:"segment_id"` // Foreign key to segments
+
+	// Ranking
+	Rank int `json:"rank,omitempty" db:"rank"` // Top N ranking
+
+	// Metadata
+	AlgoVersion string    `json:"algo_version,omitempty" db:"algo_version"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// SpeedDistribution represents speed-based distribution statistics
-type SpeedDistribution struct {
-	SpeedRange string `json:"speedRange" db:"speed_range"`  // e.g., "0-10", "10-30", "30-60", "60-120", "120+"
-	Count      int64  `json:"count" db:"count"`
-}
+// StatType constants
+const (
+	StatTypeProvince = "PROVINCE"
+	StatTypeCity     = "CITY"
+	StatTypeCounty   = "COUNTY"
+	StatTypeTown     = "TOWN"
+	StatTypeGrid     = "GRID"
+	StatTypeCategory = "CATEGORY"
+)
 
-// AdminCrossing represents a crossing between administrative divisions
-type AdminCrossing struct {
-	FromProvince string `json:"fromProvince" db:"from_province"`
-	FromCity     string `json:"fromCity" db:"from_city"`
-	ToProvince   string `json:"toProvince" db:"to_province"`
-	ToCity       string `json:"toCity" db:"to_city"`
-	CrossingTime int64  `json:"crossingTime" db:"crossing_time"`  // Unix timestamp
-	Count        int    `json:"count" db:"count"`                 // Number of times this crossing occurred
-}
+// EventType constants
+const (
+	EventTypeMaxAltitude = "MAX_ALTITUDE"
+	EventTypeMaxSpeed    = "MAX_SPEED"
+	EventTypeNorthmost   = "NORTHMOST"
+	EventTypeSouthmost   = "SOUTHMOST"
+	EventTypeEastmost    = "EASTMOST"
+	EventTypeWestmost    = "WESTMOST"
+)
+
+// EventCategory constants
+const (
+	EventCategorySpatial  = "SPATIAL"
+	EventCategorySpeed    = "SPEED"
+	EventCategoryAltitude = "ALTITUDE"
+)
