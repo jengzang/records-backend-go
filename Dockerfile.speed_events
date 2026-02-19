@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-analysis.txt /app/
+RUN pip install --no-cache-dir -r requirements-analysis.txt
+
+COPY scripts/common/ /app/scripts/common/
+COPY scripts/tracks/analysis/speed_events_worker.py /app/
+
+ENV PYTHONPATH=/app
+
+CMD ["python", "/app/speed_events_worker.py"]

@@ -1,0 +1,5 @@
+# Requirements for analysis workers
+# Minimal dependencies for trajectory analysis
+
+# No external dependencies needed - using only Python standard library
+# All workers use sqlite3 (built-in), json (built-in), math (built-in)
