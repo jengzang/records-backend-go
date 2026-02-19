@@ -41,40 +41,31 @@ class GeocodingService:
         """
         self.shapefile_dir = shapefile_dir
         self.db_path = db_path
-        self.shapefiles = {}
+        self.gdf = None  # Single GeoDataFrame with all admin levels
 
-        # Load shapefiles
+        # Load shapefile
         self._load_shapefiles()
 
     def _load_shapefiles(self):
-        """Load administrative boundary shapefiles."""
-        print("Loading shapefiles...")
+        """Load administrative boundary shapefile (single file with all levels)."""
+        print("Loading shapefile...")
 
-        # Define shapefile paths and levels
-        levels = {
-            'province': 'china_province.shp',
-            'city': 'china_city.shp',
-            'county': 'china_county.shp',
-            'town': 'china_town.shp',
-            'village': 'china_village.shp',
-        }
+        # Load the single shapefile containing all administrative levels
+        shapefile_path = self.shapefile_dir / "2024全国乡镇边界" / "2024全国乡镇边界.shp"
 
-        for level, filename in levels.items():
-            filepath = self.shapefile_dir / filename
-            if filepath.exists():
-                try:
-                    gdf = gpd.read_file(filepath)
-                    # Create spatial index for faster queries
-                    gdf.sindex
-                    self.shapefiles[level] = gdf
-                    print(f"  Loaded {level}: {len(gdf)} features")
-                except Exception as e:
-                    print(f"  Warning: Failed to load {level}: {e}")
-            else:
-                print(f"  Warning: Shapefile not found: {filepath}")
+        if not shapefile_path.exists():
+            print(f"Error: Shapefile not found: {shapefile_path}")
+            print("Please ensure the shapefile is in the correct location.")
+            sys.exit(1)
 
-        if not self.shapefiles:
-            print("Error: No shapefiles loaded. Please check shapefile directory.")
+        try:
+            self.gdf = gpd.read_file(shapefile_path)
+            # Create spatial index for faster queries
+            self.gdf.sindex
+            print(f"  Loaded shapefile: {len(self.gdf)} features (乡镇级)")
+            print(f"  Columns: {list(self.gdf.columns)}")
+        except Exception as e:
+            print(f"Error: Failed to load shapefile: {e}")
             sys.exit(1)
 
     def geocode_point(self, longitude: float, latitude: float) -> dict:
@@ -94,53 +85,33 @@ class GeocodingService:
             'city': None,
             'county': None,
             'town': None,
-            'village': None,
+            'village': None,  # Not available in this dataset
         }
 
-        # Query each administrative level
-        for level, gdf in self.shapefiles.items():
-            try:
-                # Use spatial index for faster queries
-                possible_matches_index = list(gdf.sindex.intersection(point.bounds))
-                possible_matches = gdf.iloc[possible_matches_index]
+        try:
+            # Use spatial index for faster queries
+            possible_matches_index = list(self.gdf.sindex.intersection(point.bounds))
+            possible_matches = self.gdf.iloc[possible_matches_index]
 
-                # Check which polygon contains the point
-                matches = possible_matches[possible_matches.contains(point)]
+            # Check which polygon contains the point
+            matches = possible_matches[possible_matches.contains(point)]
 
-                if not matches.empty:
-                    # Get the name from the first match
-                    # Adjust column name based on your shapefile structure
-                    name_column = self._get_name_column(gdf)
-                    if name_column:
-                        result[level] = matches.iloc[0][name_column]
-            except Exception as e:
-                print(f"    Warning: Error geocoding {level}: {e}")
+            if not matches.empty:
+                # Get the first match (should be unique at town level)
+                match = matches.iloc[0]
+
+                # Extract all administrative levels from the single feature
+                # Column names have encoding issues, so we access by column position
+                columns = list(self.gdf.columns)
+                result['province'] = match[columns[1]]  # 省级
+                result['city'] = match[columns[2]]      # 市级
+                result['county'] = match[columns[4]]    # 区县级
+                result['town'] = match[columns[6]]      # 乡镇级
+
+        except Exception as e:
+            print(f"    Warning: Error geocoding point ({longitude}, {latitude}): {e}")
 
         return result
-
-    def _get_name_column(self, gdf: gpd.GeoDataFrame) -> Optional[str]:
-        """
-        Determine the name column in the shapefile.
-
-        Args:
-            gdf: GeoDataFrame
-
-        Returns:
-            Name of the column containing administrative division names
-        """
-        # Common column names for administrative division names
-        possible_names = ['NAME', 'name', 'NAME_CHN', 'NAME_CN', 'NAMECHN', 'NAMECN', 'NAME_ZH']
-
-        for col in possible_names:
-            if col in gdf.columns:
-                return col
-
-        # If no standard name found, use the first non-geometry column
-        for col in gdf.columns:
-            if col != 'geometry':
-                return col
-
-        return None
 
     def get_ungeocoded_points(self, limit: int = 0) -> List[Tuple]:
         """
@@ -293,14 +264,14 @@ def main():
 
     # Paths
     script_dir = Path(__file__).parent
-    shapefile_dir = script_dir.parent.parent / "data" / "shapefiles"
+    shapefile_dir = script_dir.parent.parent / "data" / "geo"
     db_path = script_dir.parent.parent / "data" / "tracks" / "tracks.db"
 
     # Verify paths
     if not shapefile_dir.exists():
         print(f"Error: Shapefile directory not found: {shapefile_dir}")
-        print("Please create the directory and add shapefile data.")
-        print("See GEOCODING_README.md for instructions.")
+        print("Please create the directory and add the shapefile:")
+        print("  Expected: {shapefile_dir}/2024全国乡镇边界/2024全国乡镇边界.shp")
         sys.exit(1)
 
     if not db_path.exists():
