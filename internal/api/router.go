@@ -32,18 +32,33 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	statsRepo := repository.NewStatsRepository(db)
 	geocodingRepo := repository.NewGeocodingRepository(db)
 	analysisTaskRepo := repository.NewAnalysisTaskRepository(db)
+	segmentRepo := repository.NewSegmentRepository(db)
+	stayRepo := repository.NewStayRepository(db)
+	tripRepo := repository.NewTripRepository(db)
+	gridRepo := repository.NewGridRepository(db)
+	vizRepo := repository.NewVisualizationRepository(db)
 
 	// Initialize services
 	trackService := service.NewTrackService(trackRepo)
 	statsService := service.NewStatsService(statsRepo)
 	geocodingService := service.NewGeocodingService(geocodingRepo)
 	analysisTaskService := service.NewAnalysisTaskService(analysisTaskRepo)
+	segmentService := service.NewSegmentService(segmentRepo)
+	stayService := service.NewStayService(stayRepo)
+	tripService := service.NewTripService(tripRepo)
+	gridService := service.NewGridService(gridRepo)
+	vizService := service.NewVisualizationService(vizRepo)
 
 	// Initialize handlers
 	trackHandler := handler.NewTrackHandler(trackService)
 	statsHandler := handler.NewStatsHandler(statsService)
 	geocodingHandler := handler.NewGeocodingHandler(geocodingService)
 	analysisTaskHandler := handler.NewAnalysisTaskHandler(analysisTaskService)
+	segmentHandler := handler.NewSegmentHandler(segmentService)
+	stayHandler := handler.NewStayHandler(stayService)
+	tripHandler := handler.NewTripHandler(tripService)
+	gridHandler := handler.NewGridHandler(gridService)
+	vizHandler := handler.NewVisualizationHandler(vizService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -64,6 +79,18 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			tracks.GET("/points/:id", trackHandler.GetTrackPointByID)
 			tracks.GET("/ungeocoded", trackHandler.GetUngeocodedPoints)
 
+			// Segments endpoints
+			tracks.GET("/segments", segmentHandler.GetSegments)
+			tracks.GET("/segments/:id", segmentHandler.GetSegmentByID)
+
+			// Stays endpoints
+			tracks.GET("/stays", stayHandler.GetStays)
+			tracks.GET("/stays/:id", stayHandler.GetStayByID)
+
+			// Trips endpoints
+			tracks.GET("/trips", tripHandler.GetTrips)
+			tracks.GET("/trips/:id", tripHandler.GetTripByID)
+
 			// Statistics endpoints
 			stats := tracks.Group("/statistics")
 			{
@@ -71,6 +98,22 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				stats.GET("/time-distribution", statsHandler.GetTimeDistribution)
 				stats.GET("/speed-distribution", statsHandler.GetSpeedDistribution)
 			}
+		}
+
+		// 统计排行榜接口
+		stats := api.Group("/stats")
+		{
+			stats.GET("/footprint/rankings", statsHandler.GetFootprintRankings)
+			stats.GET("/stay/rankings", statsHandler.GetStayRankings)
+			stats.GET("/extreme-events", statsHandler.GetExtremeEvents)
+		}
+
+		// 可视化接口
+		viz := api.Group("/viz")
+		{
+			viz.GET("/grid-cells", gridHandler.GetGridCells)
+			viz.GET("/rendering", vizHandler.GetRenderingMetadata)
+			viz.GET("/time-slices", vizHandler.GetTimeSliceData)
 		}
 
 		// 键盘鼠标统计接口 (placeholder)

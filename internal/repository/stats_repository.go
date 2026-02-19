@@ -171,3 +171,206 @@ func (r *StatsRepository) GetSpeedDistribution(startTime, endTime int64) ([]mode
 
 	return distribution, nil
 }
+
+// GetFootprintRankings retrieves footprint statistics with rankings
+func (r *StatsRepository) GetFootprintRankings(filter models.StatsFilter) ([]models.FootprintStatistics, error) {
+	// Build query
+	query := `SELECT id, stat_type, stat_key, time_range,
+		province, city, county, town,
+		point_count, visit_count, total_distance_meters, total_duration_seconds,
+		first_visit_time, last_visit_time,
+		rank_by_points, rank_by_visits, rank_by_duration,
+		algo_version, created_at, updated_at
+		FROM footprint_statistics`
+
+	var conditions []string
+	var args []interface{}
+
+	// Add filters
+	if filter.StatType != "" {
+		conditions = append(conditions, "stat_type = ?")
+		args = append(args, filter.StatType)
+	}
+	if filter.TimeRange != "" {
+		conditions = append(conditions, "time_range = ?")
+		args = append(args, filter.TimeRange)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Order by
+	orderBy := "point_count DESC"
+	if filter.OrderBy == "visits" {
+		orderBy = "visit_count DESC"
+	} else if filter.OrderBy == "duration" {
+		orderBy = "total_duration_seconds DESC"
+	} else if filter.OrderBy == "distance" {
+		orderBy = "total_distance_meters DESC"
+	}
+	query += " ORDER BY " + orderBy
+
+	// Limit
+	limit := 100
+	if filter.Limit > 0 && filter.Limit <= 1000 {
+		limit = filter.Limit
+	}
+	query += " LIMIT ?"
+	args = append(args, limit)
+
+	// Execute query
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query footprint rankings: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []models.FootprintStatistics
+	for rows.Next() {
+		var s models.FootprintStatistics
+		err := rows.Scan(
+			&s.ID, &s.StatType, &s.StatKey, &s.TimeRange,
+			&s.Province, &s.City, &s.County, &s.Town,
+			&s.PointCount, &s.VisitCount, &s.TotalDistanceMeters, &s.TotalDurationSeconds,
+			&s.FirstVisitTime, &s.LastVisitTime,
+			&s.RankByPoints, &s.RankByVisits, &s.RankByDuration,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan footprint statistics: %w", err)
+		}
+		stats = append(stats, s)
+	}
+
+	return stats, nil
+}
+
+// GetStayRankings retrieves stay statistics with rankings
+func (r *StatsRepository) GetStayRankings(filter models.StatsFilter) ([]models.StayStatistics, error) {
+	// Build query
+	query := `SELECT id, stat_type, stat_key, time_range,
+		province, city, county,
+		stay_count, total_duration_seconds, avg_duration_seconds, max_duration_seconds,
+		stay_category, rank_by_count, rank_by_duration,
+		algo_version, created_at, updated_at
+		FROM stay_statistics`
+
+	var conditions []string
+	var args []interface{}
+
+	// Add filters
+	if filter.StatType != "" {
+		conditions = append(conditions, "stat_type = ?")
+		args = append(args, filter.StatType)
+	}
+	if filter.TimeRange != "" {
+		conditions = append(conditions, "time_range = ?")
+		args = append(args, filter.TimeRange)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Order by
+	orderBy := "stay_count DESC"
+	if filter.OrderBy == "duration" {
+		orderBy = "total_duration_seconds DESC"
+	}
+	query += " ORDER BY " + orderBy
+
+	// Limit
+	limit := 100
+	if filter.Limit > 0 && filter.Limit <= 1000 {
+		limit = filter.Limit
+	}
+	query += " LIMIT ?"
+	args = append(args, limit)
+
+	// Execute query
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query stay rankings: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []models.StayStatistics
+	for rows.Next() {
+		var s models.StayStatistics
+		err := rows.Scan(
+			&s.ID, &s.StatType, &s.StatKey, &s.TimeRange,
+			&s.Province, &s.City, &s.County,
+			&s.StayCount, &s.TotalDurationSeconds, &s.AvgDurationSeconds, &s.MaxDurationSeconds,
+			&s.StayCategory, &s.RankByCount, &s.RankByDuration,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan stay statistics: %w", err)
+		}
+		stats = append(stats, s)
+	}
+
+	return stats, nil
+}
+
+// GetExtremeEvents retrieves extreme events
+func (r *StatsRepository) GetExtremeEvents(eventType, eventCategory string, limit int) ([]models.ExtremeEvent, error) {
+	// Build query
+	query := `SELECT id, event_type, event_category, point_id, event_time, event_value,
+		latitude, longitude, province, city, county,
+		mode, segment_id, rank,
+		algo_version, created_at, updated_at
+		FROM extreme_events`
+
+	var conditions []string
+	var args []interface{}
+
+	// Add filters
+	if eventType != "" {
+		conditions = append(conditions, "event_type = ?")
+		args = append(args, eventType)
+	}
+	if eventCategory != "" {
+		conditions = append(conditions, "event_category = ?")
+		args = append(args, eventCategory)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Order by rank
+	query += " ORDER BY rank ASC"
+
+	// Limit
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	query += " LIMIT ?"
+	args = append(args, limit)
+
+	// Execute query
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query extreme events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []models.ExtremeEvent
+	for rows.Next() {
+		var e models.ExtremeEvent
+		err := rows.Scan(
+			&e.ID, &e.EventType, &e.EventCategory, &e.PointID, &e.EventTime, &e.EventValue,
+			&e.Latitude, &e.Longitude, &e.Province, &e.City, &e.County,
+			&e.Mode, &e.SegmentID, &e.Rank,
+			&e.AlgoVersion, &e.CreatedAt, &e.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan extreme event: %w", err)
+		}
+		events = append(events, e)
+	}
+
+	return events, nil
+}

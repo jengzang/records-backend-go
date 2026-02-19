@@ -19,11 +19,18 @@ func Success(c *gin.Context, data interface{}) {
 }
 
 // Error sends an error response
-func Error(c *gin.Context, code int, message string) {
-	c.JSON(code, Response{
+func Error(c *gin.Context, code int, message string, err ...error) {
+	resp := Response{
 		Code:    code,
 		Message: message,
-	})
+	}
+
+	// If error is provided, include it in the response (for debugging)
+	if len(err) > 0 && err[0] != nil {
+		resp.Data = gin.H{"error": err[0].Error()}
+	}
+
+	c.JSON(code, resp)
 }
 
 // BadRequest sends a 400 bad request response

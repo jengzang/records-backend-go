@@ -83,3 +83,18 @@ func (s *StatsService) GetSpeedDistribution(startTime, endTime int64) ([]models.
 
 	return distribution, nil
 }
+
+// GetFootprintRankings retrieves footprint statistics with rankings
+func (s *StatsService) GetFootprintRankings(filter models.StatsFilter) ([]models.FootprintStatistics, error) {
+	return s.statsRepo.GetFootprintRankings(filter)
+}
+
+// GetStayRankings retrieves stay statistics with rankings
+func (s *StatsService) GetStayRankings(filter models.StatsFilter) ([]models.StayStatistics, error) {
+	return s.statsRepo.GetStayRankings(filter)
+}
+
+// GetExtremeEvents retrieves extreme events
+func (s *StatsService) GetExtremeEvents(eventType, eventCategory string, limit int) ([]models.ExtremeEvent, error) {
+	return s.statsRepo.GetExtremeEvents(eventType, eventCategory, limit)
+}

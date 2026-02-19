@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jengzang/records-backend-go/internal/models"
 	"github.com/jengzang/records-backend-go/internal/service"
 	"github.com/jengzang/records-backend-go/pkg/response"
 )
@@ -102,4 +104,96 @@ func (h *StatsHandler) GetSpeedDistribution(c *gin.Context) {
 	}
 
 	response.Success(c, distribution)
+}
+
+// GetFootprintRankings handles GET /api/v1/stats/footprint/rankings
+func (h *StatsHandler) GetFootprintRankings(c *gin.Context) {
+	var filter models.StatsFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid query parameters", err)
+		return
+	}
+
+	// Default values
+	if filter.StatType == "" {
+		filter.StatType = "PROVINCE"
+	}
+	if filter.TimeRange == "" {
+		filter.TimeRange = "all"
+	}
+	if filter.OrderBy == "" {
+		filter.OrderBy = "points"
+	}
+	if filter.Limit == 0 {
+		filter.Limit = 100
+	}
+
+	rankings, err := h.statsService.GetFootprintRankings(filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get footprint rankings", err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"data":  rankings,
+		"count": len(rankings),
+	})
+}
+
+// GetStayRankings handles GET /api/v1/stats/stay/rankings
+func (h *StatsHandler) GetStayRankings(c *gin.Context) {
+	var filter models.StatsFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid query parameters", err)
+		return
+	}
+
+	// Default values
+	if filter.StatType == "" {
+		filter.StatType = "PROVINCE"
+	}
+	if filter.TimeRange == "" {
+		filter.TimeRange = "all"
+	}
+	if filter.OrderBy == "" {
+		filter.OrderBy = "count"
+	}
+	if filter.Limit == 0 {
+		filter.Limit = 100
+	}
+
+	rankings, err := h.statsService.GetStayRankings(filter)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get stay rankings", err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"data":  rankings,
+		"count": len(rankings),
+	})
+}
+
+// GetExtremeEvents handles GET /api/v1/stats/extreme-events
+func (h *StatsHandler) GetExtremeEvents(c *gin.Context) {
+	eventType := c.Query("eventType")
+	eventCategory := c.Query("eventCategory")
+	limitStr := c.DefaultQuery("limit", "100")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid limit parameter", err)
+		return
+	}
+
+	events, err := h.statsService.GetExtremeEvents(eventType, eventCategory, limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get extreme events", err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"data":  events,
+		"count": len(events),
+	})
 }
