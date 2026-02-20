@@ -67,19 +67,19 @@ func (a *StayAnalyzer) Analyze(ctx context.Context, taskID int64, mode string) e
 		query := `
 			SELECT
 				id,
-				start_ts,
-				end_ts,
+				start_time,
+				end_time,
 				duration_s,
 				stay_type,
 				province,
 				city,
 				county,
 				town,
-				strftime('%Y', datetime(start_ts, 'unixepoch')) as year,
-				strftime('%Y-%m', datetime(start_ts, 'unixepoch')) as month,
-				strftime('%Y-%m-%d', datetime(start_ts, 'unixepoch')) as day,
-				strftime('%H', datetime(start_ts, 'unixepoch')) as hour,
-				strftime('%w', datetime(start_ts, 'unixepoch')) as weekday
+				strftime('%Y', datetime(start_time, 'unixepoch')) as year,
+				strftime('%Y-%m', datetime(start_time, 'unixepoch')) as month,
+				strftime('%Y-%m-%d', datetime(start_time, 'unixepoch')) as day,
+				strftime('%H', datetime(start_time, 'unixepoch')) as hour,
+				strftime('%w', datetime(start_time, 'unixepoch')) as weekday
 			FROM stay_segments
 			WHERE id > ?
 			ORDER BY id
@@ -247,13 +247,14 @@ func (a *StayAnalyzer) upsertStatistics(ctx context.Context, stats map[string]*S
 		INSERT INTO stay_statistics (
 			stat_type, stat_key, time_range,
 			stay_count, total_duration_s, avg_duration_s, max_duration_s,
-			updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+			metadata, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(stat_type, stat_key, time_range) DO UPDATE SET
 			stay_count = stay_count + excluded.stay_count,
 			total_duration_s = total_duration_s + excluded.total_duration_s,
 			avg_duration_s = (total_duration_s + excluded.total_duration_s) / (stay_count + excluded.stay_count),
 			max_duration_s = MAX(max_duration_s, excluded.max_duration_s),
+			metadata = excluded.metadata,
 			updated_at = CURRENT_TIMESTAMP
 	`
 
@@ -266,6 +267,9 @@ func (a *StayAnalyzer) upsertStatistics(ctx context.Context, stats map[string]*S
 	for _, stat := range stats {
 		avgDuration := float64(stat.TotalDuration) / float64(stat.StayCount)
 
+		// Create metadata JSON
+		metadata := fmt.Sprintf(`{"visit_days":%d}`, len(stat.VisitDays))
+
 		_, err := stmt.ExecContext(ctx,
 			stat.StatType,
 			stat.StatKey,
@@ -274,6 +278,7 @@ func (a *StayAnalyzer) upsertStatistics(ctx context.Context, stats map[string]*S
 			stat.TotalDuration,
 			avgDuration,
 			stat.MaxDuration,
+			metadata,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to upsert statistic: %w", err)

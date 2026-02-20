@@ -257,8 +257,8 @@ func (a *FootprintAnalyzer) upsertStatistics(ctx context.Context, stats map[stri
 		INSERT INTO footprint_statistics (
 			stat_type, stat_key, time_range,
 			point_count, visit_count, first_visit, last_visit,
-			total_distance_m, total_duration_s, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+			total_distance_m, total_duration_s, metadata, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(stat_type, stat_key, time_range) DO UPDATE SET
 			point_count = point_count + excluded.point_count,
 			visit_count = visit_count + excluded.visit_count,
@@ -266,6 +266,7 @@ func (a *FootprintAnalyzer) upsertStatistics(ctx context.Context, stats map[stri
 			last_visit = MAX(last_visit, excluded.last_visit),
 			total_distance_m = total_distance_m + excluded.total_distance_m,
 			total_duration_s = total_duration_s + excluded.total_duration_s,
+			metadata = excluded.metadata,
 			updated_at = CURRENT_TIMESTAMP
 	`
 
@@ -279,6 +280,9 @@ func (a *FootprintAnalyzer) upsertStatistics(ctx context.Context, stats map[stri
 		visitCount := int64(len(stat.VisitDays))
 		duration := stat.LastVisit - stat.FirstVisit
 
+		// Create metadata JSON
+		metadata := fmt.Sprintf(`{"visit_days":%d}`, visitCount)
+
 		_, err := stmt.ExecContext(ctx,
 			stat.StatType,
 			stat.StatKey,
@@ -289,6 +293,7 @@ func (a *FootprintAnalyzer) upsertStatistics(ctx context.Context, stats map[stri
 			stat.LastVisit,
 			stat.TotalDistance,
 			duration,
+			metadata,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to upsert statistic: %w", err)

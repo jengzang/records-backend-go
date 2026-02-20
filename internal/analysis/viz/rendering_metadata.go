@@ -63,11 +63,9 @@ func (a *RenderingMetadataAnalyzer) Analyze(ctx context.Context, taskID int64, m
 	segmentsQuery := `
 		SELECT
 			id,
-			start_ts,
-			end_ts,
-			grid_id
+			start_time,
+			end_time
 		FROM segments
-		WHERE outlier_flag = 0
 		ORDER BY id
 	`
 
@@ -79,7 +77,7 @@ func (a *RenderingMetadataAnalyzer) Analyze(ctx context.Context, taskID int64, m
 	var segments []SegmentInfo
 	for rows.Next() {
 		var seg SegmentInfo
-		if err := rows.Scan(&seg.ID, &seg.StartTS, &seg.EndTS, &seg.GridID); err != nil {
+		if err := rows.Scan(&seg.ID, &seg.StartTS, &seg.EndTS); err != nil {
 			rows.Close()
 			return fmt.Errorf("failed to scan segment: %w", err)
 		}
@@ -103,7 +101,8 @@ func (a *RenderingMetadataAnalyzer) Analyze(ctx context.Context, taskID int64, m
 		// Get points for this segment
 		pointsQuery := `
 			SELECT
-				speed
+				speed,
+				grid_id
 			FROM "一生足迹"
 			WHERE dataTime BETWEEN ? AND ?
 				AND outlier_flag = 0
@@ -116,14 +115,19 @@ func (a *RenderingMetadataAnalyzer) Analyze(ctx context.Context, taskID int64, m
 		}
 
 		var speeds []float64
+		var gridIDs []string
 		for pointRows.Next() {
 			var speed sql.NullFloat64
-			if err := pointRows.Scan(&speed); err != nil {
+			var gridID sql.NullString
+			if err := pointRows.Scan(&speed, &gridID); err != nil {
 				pointRows.Close()
 				return fmt.Errorf("failed to scan speed: %w", err)
 			}
 			if speed.Valid && speed.Float64 > 0 {
 				speeds = append(speeds, speed.Float64)
+			}
+			if gridID.Valid && gridID.String != "" {
+				gridIDs = append(gridIDs, gridID.String)
 			}
 		}
 		pointRows.Close()
@@ -138,10 +142,23 @@ func (a *RenderingMetadataAnalyzer) Analyze(ctx context.Context, taskID int64, m
 		// Determine speed bucket (0-5)
 		speedBucket := a.getSpeedBucket(avgSpeed, speedPercentiles)
 
-		// Get overlap rank from grid_id
+		// Get overlap rank from most common grid_id in this segment
 		overlapRank := 0.0
-		if seg.GridID.Valid {
-			if rank, ok := overlapStats[seg.GridID.String]; ok {
+		if len(gridIDs) > 0 {
+			// Find most common grid_id
+			gridCounts := make(map[string]int)
+			for _, gid := range gridIDs {
+				gridCounts[gid]++
+			}
+			maxCount := 0
+			mostCommonGrid := ""
+			for gid, count := range gridCounts {
+				if count > maxCount {
+					maxCount = count
+					mostCommonGrid = gid
+				}
+			}
+			if rank, ok := overlapStats[mostCommonGrid]; ok {
 				overlapRank = rank
 			}
 		}
@@ -206,7 +223,6 @@ type SegmentInfo struct {
 	ID      int64
 	StartTS int64
 	EndTS   int64
-	GridID  sql.NullString
 }
 
 // RenderMetadata holds rendering metadata
@@ -265,13 +281,13 @@ func (a *RenderingMetadataAnalyzer) calculateSpeedPercentiles(ctx context.Contex
 	return percentiles, nil
 }
 
-// calculateOverlapStats calculates overlap statistics by grid_id
+// calculateOverlapStats calculates overlap statistics by grid_id from track points
 func (a *RenderingMetadataAnalyzer) calculateOverlapStats(ctx context.Context) (map[string]float64, error) {
 	query := `
 		SELECT
 			grid_id,
 			COUNT(*) as visit_count
-		FROM segments
+		FROM "一生足迹"
 		WHERE grid_id IS NOT NULL
 			AND outlier_flag = 0
 		GROUP BY grid_id
