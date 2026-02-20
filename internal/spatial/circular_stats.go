@@ -101,7 +101,7 @@ func MeanResultantLength(angles []float64, weights []float64) float64 {
 // Higher kappa means more concentrated around the mean
 func CircularConcentration(angles []float64, weights []float64) float64 {
 	r := MeanResultantLength(angles, weights)
-	n := float64(len(angles))
+	_ = float64(len(angles)) // n is not used in the approximation
 
 	// Approximation for kappa (von Mises distribution)
 	if r < 0.53 {

@@ -1,9 +1,5 @@
 package spatial
 
-import (
-	"math"
-)
-
 // Base32 encoding for geohash
 const base32 = "0123456789bcdefghjkmnpqrstuvwxyz"
 

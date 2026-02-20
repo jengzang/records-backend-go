@@ -6,6 +6,10 @@ import "time"
 type FootprintStatistics struct {
 	ID int64 `json:"id" db:"id"`
 
+	// Time range for query-based statistics
+	StartTime int64 `json:"start_time,omitempty"`
+	EndTime   int64 `json:"end_time,omitempty"`
+
 	// Aggregation dimensions
 	StatType  string `json:"stat_type" db:"stat_type"`   // PROVINCE, CITY, COUNTY, TOWN, GRID
 	StatKey   string `json:"stat_key" db:"stat_key"`     // Province/city/county/town name or grid_id
@@ -18,12 +22,23 @@ type FootprintStatistics struct {
 	Town     string `json:"town,omitempty" db:"town"`
 
 	// Statistics
+	TotalPoints         int     `json:"total_points"`
 	PointCount          int     `json:"point_count" db:"point_count"`
 	VisitCount          int     `json:"visit_count" db:"visit_count"`
 	TotalDistanceMeters float64 `json:"total_distance_meters" db:"total_distance_meters"`
 	TotalDurationSeconds int64  `json:"total_duration_seconds" db:"total_duration_seconds"`
 	FirstVisitTime      int64   `json:"first_visit_time,omitempty" db:"first_visit_time"` // Unix timestamp
 	LastVisitTime       int64   `json:"last_visit_time,omitempty" db:"last_visit_time"`   // Unix timestamp
+
+	// Administrative division counts and lists
+	ProvinceCount int      `json:"province_count"`
+	Provinces     []string `json:"provinces,omitempty"`
+	CityCount     int      `json:"city_count"`
+	Cities        []string `json:"cities,omitempty"`
+	CountyCount   int      `json:"county_count"`
+	Counties      []string `json:"counties,omitempty"`
+	TownCount     int      `json:"town_count"`
+	VillageCount  int      `json:"village_count"`
 
 	// Rankings
 	RankByPoints   int `json:"rank_by_points,omitempty" db:"rank_by_points"`
@@ -32,6 +47,7 @@ type FootprintStatistics struct {
 
 	// Metadata
 	AlgoVersion string    `json:"algo_version,omitempty" db:"algo_version"`
+	GeneratedAt string    `json:"generated_at,omitempty"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }

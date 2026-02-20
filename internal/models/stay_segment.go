@@ -39,6 +39,7 @@ type StaySegment struct {
 	Confidence   float64 `json:"confidence,omitempty" db:"confidence"`       // 0~1
 
 	// Metadata
+	Metadata    string    `json:"metadata,omitempty" db:"metadata"`         // JSON metadata
 	AlgoVersion string    `json:"algo_version,omitempty" db:"algo_version"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`

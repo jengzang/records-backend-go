@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/jengzang/records-backend-go/internal/analysis"
-	"github.com/jengzang/records-backend-go/internal/database"
 )
 
 // PythonWorkerAnalyzer wraps a Python worker script as an Analyzer

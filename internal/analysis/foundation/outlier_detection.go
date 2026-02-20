@@ -11,6 +11,23 @@ import (
 	"github.com/jengzang/records-backend-go/internal/analysis"
 )
 
+// OutlierPoint represents a GPS point for outlier detection
+type OutlierPoint struct {
+	ID       int64
+	Speed    float64
+	Accuracy float64
+}
+
+// TrajectoryPoint represents a GPS point for trajectory completion
+type TrajectoryPoint struct {
+	ID        int64
+	Timestamp int64
+	Lat       float64
+	Lon       float64
+	Altitude  float64
+	Speed     float64
+}
+
 // OutlierDetectionAnalyzer implements outlier detection
 // Skill: 异常点检测 (Outlier Detection)
 // Detects outliers using Z-score and IQR methods
@@ -58,15 +75,9 @@ func (a *OutlierDetectionAnalyzer) Analyze(ctx context.Context, taskID int64, mo
 	}
 	defer rows.Close()
 
-	type Point struct {
-		ID       int64
-		Speed    float64
-		Accuracy float64
-	}
-
-	var points []Point
+	var points []OutlierPoint
 	for rows.Next() {
-		var point Point
+		var point OutlierPoint
 		var speed, accuracy sql.NullFloat64
 
 		if err := rows.Scan(&point.ID, &speed, &accuracy); err != nil {
@@ -119,7 +130,7 @@ func (a *OutlierDetectionAnalyzer) Analyze(ctx context.Context, taskID int64, mo
 }
 
 // detectOutliers detects outliers using multiple methods
-func (a *OutlierDetectionAnalyzer) detectOutliers(points []Point) []int64 {
+func (a *OutlierDetectionAnalyzer) detectOutliers(points []OutlierPoint) []int64 {
 	outlierMap := make(map[int64]bool)
 
 	// Method 1: Speed outliers (>200 km/h = 55.56 m/s)
@@ -139,13 +150,13 @@ func (a *OutlierDetectionAnalyzer) detectOutliers(points []Point) []int64 {
 	}
 
 	// Method 3: Z-score method for speed
-	speedOutliers := a.detectZScoreOutliers(points, func(p Point) float64 { return p.Speed })
+	speedOutliers := a.detectZScoreOutliers(points, func(p OutlierPoint) float64 { return p.Speed })
 	for _, id := range speedOutliers {
 		outlierMap[id] = true
 	}
 
 	// Method 4: IQR method for speed
-	speedIQROutliers := a.detectIQROutliers(points, func(p Point) float64 { return p.Speed })
+	speedIQROutliers := a.detectIQROutliers(points, func(p OutlierPoint) float64 { return p.Speed })
 	for _, id := range speedIQROutliers {
 		outlierMap[id] = true
 	}
@@ -160,7 +171,7 @@ func (a *OutlierDetectionAnalyzer) detectOutliers(points []Point) []int64 {
 }
 
 // detectZScoreOutliers detects outliers using Z-score method (|z| > 3)
-func (a *OutlierDetectionAnalyzer) detectZScoreOutliers(points []Point, getValue func(Point) float64) []int64 {
+func (a *OutlierDetectionAnalyzer) detectZScoreOutliers(points []OutlierPoint, getValue func(OutlierPoint) float64) []int64 {
 	if len(points) == 0 {
 		return nil
 	}
@@ -196,7 +207,7 @@ func (a *OutlierDetectionAnalyzer) detectZScoreOutliers(points []Point, getValue
 }
 
 // detectIQROutliers detects outliers using IQR method
-func (a *OutlierDetectionAnalyzer) detectIQROutliers(points []Point, getValue func(Point) float64) []int64 {
+func (a *OutlierDetectionAnalyzer) detectIQROutliers(points []OutlierPoint, getValue func(OutlierPoint) float64) []int64 {
 	if len(points) == 0 {
 		return nil
 	}

@@ -3,7 +3,6 @@ package spatial
 import (
 	"math"
 
-	"github.com/golang/geo/s1"
 	"github.com/golang/geo/s2"
 )
 
@@ -18,9 +17,6 @@ func HaversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
 // Bearing calculates the initial bearing (forward azimuth) from point 1 to point 2
 // Returns bearing in degrees (0-360), where 0 is North, 90 is East, etc.
 func Bearing(lat1, lon1, lat2, lon2 float64) float64 {
-	p1 := s2.LatLngFromDegrees(lat1, lon1)
-	p2 := s2.LatLngFromDegrees(lat2, lon2)
-
 	// Convert to radians
 	lat1Rad := lat1 * math.Pi / 180
 	lat2Rad := lat2 * math.Pi / 180
@@ -77,7 +73,7 @@ func Midpoint(lat1, lon1, lat2, lon2 float64) (float64, float64) {
 	p2 := s2.LatLngFromDegrees(lat2, lon2)
 
 	// Use S2 interpolation
-	mid := s2.Interpolate(0.5, p1.ToPoint(), p2.ToPoint())
+	mid := s2.Interpolate(0.5, s2.PointFromLatLng(p1), s2.PointFromLatLng(p2))
 	midLatLng := s2.LatLngFromPoint(mid)
 
 	return midLatLng.Lat.Degrees(), midLatLng.Lng.Degrees()

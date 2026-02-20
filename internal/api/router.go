@@ -42,7 +42,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	trackService := service.NewTrackService(trackRepo)
 	statsService := service.NewStatsService(statsRepo)
 	geocodingService := service.NewGeocodingService(geocodingRepo)
-	analysisTaskService := service.NewAnalysisTaskService(analysisTaskRepo)
+	analysisTaskService := service.NewAnalysisTaskService(analysisTaskRepo, db)
 	segmentService := service.NewSegmentService(segmentRepo)
 	stayService := service.NewStayService(stayRepo)
 	tripService := service.NewTripService(tripRepo)

@@ -38,7 +38,8 @@ type Trip struct {
 	PrimaryMode    string  `json:"primary_mode,omitempty" db:"primary_mode"` // Dominant transport mode
 
 	// Segments involved
-	SegmentIDs string `json:"segment_ids,omitempty" db:"segment_ids"` // JSON array of segment IDs
+	ModesJSON      string `json:"modes_json,omitempty" db:"modes_json"`           // JSON array of transport modes
+	SegmentIDsJSON string `json:"segment_ids_json,omitempty" db:"segment_ids_json"` // JSON array of segment IDs
 
 	// Trip type
 	TripType    string `json:"trip_type,omitempty" db:"trip_type"` // INTRA_CITY, INTER_CITY, INTER_PROVINCE

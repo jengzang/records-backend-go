@@ -62,18 +62,9 @@ func (a *TrajectoryCompletionAnalyzer) Analyze(ctx context.Context, taskID int64
 	}
 	defer rows.Close()
 
-	type Point struct {
-		ID        int64
-		Timestamp int64
-		Lat       float64
-		Lon       float64
-		Altitude  float64
-		Speed     float64
-	}
-
-	var points []Point
+	var points []TrajectoryPoint
 	for rows.Next() {
-		var point Point
+		var point TrajectoryPoint
 		var altitude, speed sql.NullFloat64
 
 		if err := rows.Scan(&point.ID, &point.Timestamp, &point.Lat, &point.Lon, &altitude, &speed); err != nil {
@@ -137,7 +128,7 @@ type InterpolatedPoint struct {
 }
 
 // detectAndInterpolate detects gaps and creates interpolated points
-func (a *TrajectoryCompletionAnalyzer) detectAndInterpolate(points []Point, gapThreshold, maxGap int64) []InterpolatedPoint {
+func (a *TrajectoryCompletionAnalyzer) detectAndInterpolate(points []TrajectoryPoint, gapThreshold, maxGap int64) []InterpolatedPoint {
 	var interpolated []InterpolatedPoint
 
 	for i := 0; i < len(points)-1; i++ {
