@@ -8,7 +8,7 @@ type AnalysisTask struct {
 
 	// Task identification
 	SkillName string `json:"skill_name" db:"skill_name"` // Which skill to run
-	TaskType  string `json:"task_type" db:"task_type"`   // INCREMENTAL, FULL_RECOMPUTE
+	TaskType  string `json:"task_type" db:"mode"`        // INCREMENTAL, FULL_RECOMPUTE
 
 	// Status
 	Status          string `json:"status" db:"status"`                       // pending, running, completed, failed

@@ -74,7 +74,7 @@ func (a *BaseAnalyzer) MarkTaskAsRunning(taskID int64) error {
 	query := `
 		UPDATE analysis_tasks
 		SET status = 'running',
-		    started_at = CURRENT_TIMESTAMP,
+		    start_time = CURRENT_TIMESTAMP,
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`
@@ -89,7 +89,7 @@ func (a *BaseAnalyzer) MarkTaskAsCompleted(taskID int64) error {
 		UPDATE analysis_tasks
 		SET status = 'completed',
 		    progress_percent = 100,
-		    completed_at = CURRENT_TIMESTAMP,
+		    end_time = CURRENT_TIMESTAMP,
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`
@@ -104,7 +104,7 @@ func (a *BaseAnalyzer) MarkTaskAsFailed(taskID int64, errorMsg string) error {
 		UPDATE analysis_tasks
 		SET status = 'failed',
 		    error_message = ?,
-		    completed_at = CURRENT_TIMESTAMP,
+		    end_time = CURRENT_TIMESTAMP,
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`
@@ -116,9 +116,9 @@ func (a *BaseAnalyzer) MarkTaskAsFailed(taskID int64, errorMsg string) error {
 // GetTaskInfo retrieves task information from the database
 func (a *BaseAnalyzer) GetTaskInfo(taskID int64) (*TaskInfo, error) {
 	query := `
-		SELECT id, skill_name, task_type, status, progress_percent,
+		SELECT id, skill_name, mode, status, progress_percent,
 		       total_points, processed_points, failed_points,
-		       params_json, created_at, started_at, completed_at
+		       params_json, created_at, start_time, end_time
 		FROM analysis_tasks
 		WHERE id = ?
 	`

@@ -22,7 +22,7 @@ func NewAnalysisTaskRepository(db *sql.DB) *AnalysisTaskRepository {
 func (r *AnalysisTaskRepository) Create(task *models.AnalysisTask) error {
 	query := `
 		INSERT INTO analysis_tasks (
-			skill_name, task_type, status, progress_percent, eta_seconds,
+			skill_name, mode, status, progress_percent, eta_seconds,
 			params_json, threshold_profile_id, total_points, processed_points,
 			failed_points, start_time, end_time, result_summary, error_message,
 			depends_on_task_ids, blocks_task_ids, created_by
@@ -65,7 +65,7 @@ func (r *AnalysisTaskRepository) Create(task *models.AnalysisTask) error {
 // GetByID retrieves an analysis task by ID
 func (r *AnalysisTaskRepository) GetByID(id int64) (*models.AnalysisTask, error) {
 	query := `
-		SELECT id, skill_name, task_type, status, progress_percent, eta_seconds,
+		SELECT id, skill_name, mode, status, progress_percent, eta_seconds,
 			   params_json, threshold_profile_id, total_points, processed_points,
 			   failed_points, start_time, end_time, result_summary, error_message,
 			   depends_on_task_ids, blocks_task_ids, created_by, created_at, updated_at
@@ -110,7 +110,7 @@ func (r *AnalysisTaskRepository) GetByID(id int64) (*models.AnalysisTask, error)
 // List retrieves analysis tasks with optional filters
 func (r *AnalysisTaskRepository) List(skillName string, status string, limit int, offset int) ([]*models.AnalysisTask, error) {
 	query := `
-		SELECT id, skill_name, task_type, status, progress_percent, eta_seconds,
+		SELECT id, skill_name, mode, status, progress_percent, eta_seconds,
 			   params_json, threshold_profile_id, total_points, processed_points,
 			   failed_points, start_time, end_time, result_summary, error_message,
 			   depends_on_task_ids, blocks_task_ids, created_by, created_at, updated_at
