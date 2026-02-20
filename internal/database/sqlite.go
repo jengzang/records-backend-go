@@ -6,7 +6,7 @@ import (
 	"log"
 	"sync"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 var (
@@ -23,7 +23,7 @@ type Config struct {
 func Init(cfg Config) error {
 	var err error
 	once.Do(func() {
-		db, err = sql.Open("sqlite3", cfg.Path)
+		db, err = sql.Open("sqlite", cfg.Path)
 		if err != nil {
 			return
 		}

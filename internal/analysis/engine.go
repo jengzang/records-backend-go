@@ -138,10 +138,12 @@ func (a *BaseAnalyzer) GetTaskInfo(taskID int64) (*TaskInfo, error) {
 	}
 
 	if startedAt.Valid {
-		info.StartedAt = &startedAt.Time
+		timeStr := startedAt.Time.Format("2006-01-02 15:04:05")
+		info.StartedAt = &timeStr
 	}
 	if completedAt.Valid {
-		info.CompletedAt = &completedAt.Time
+		timeStr := completedAt.Time.Format("2006-01-02 15:04:05")
+		info.CompletedAt = &timeStr
 	}
 
 	return &info, nil

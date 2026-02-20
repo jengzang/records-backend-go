@@ -126,3 +126,18 @@ const (
 	EventCategorySpeed    = "SPEED"
 	EventCategoryAltitude = "ALTITUDE"
 )
+
+// TimeDistribution represents time-based distribution statistics
+type TimeDistribution struct {
+	Hour     int   `json:"hour" db:"hour"`
+	Weekday  int   `json:"weekday" db:"weekday"`
+	Count    int   `json:"count" db:"count"`
+	Duration int64 `json:"duration" db:"duration"`
+}
+
+// SpeedDistribution represents speed-based distribution statistics
+type SpeedDistribution struct {
+	SpeedRange string  `json:"speed_range" db:"speed_range"` // e.g., "0-10", "10-20"
+	Count      int     `json:"count" db:"count"`
+	Percentage float64 `json:"percentage" db:"percentage"`
+}

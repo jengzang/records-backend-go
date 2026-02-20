@@ -18,13 +18,7 @@ type GeocodingTask struct {
 	UpdatedAt       time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// TaskStatus constants
-const (
-	TaskStatusPending   = "pending"
-	TaskStatusRunning   = "running"
-	TaskStatusCompleted = "completed"
-	TaskStatusFailed    = "failed"
-)
+// TaskStatus constants are defined in analysis_task.go
 
 // IsTerminal returns true if the task is in a terminal state
 func (t *GeocodingTask) IsTerminal() bool {

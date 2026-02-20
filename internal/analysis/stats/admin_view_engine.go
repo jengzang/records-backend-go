@@ -77,15 +77,15 @@ func (a *AdminViewEngineAnalyzer) Analyze(ctx context.Context, taskID int64, mod
 
 // AdminStat holds administrative statistics
 type AdminStat struct {
-	AdminLevel     string
-	AdminName      string
-	ParentName     string
-	VisitCount     int64
-	TotalDuration  int64
-	UniqueDays     int64
-	FirstVisitTS   int64
-	LastVisitTS    int64
-	TotalDistance  float64
+	AdminLevel    string
+	AdminName     string
+	ParentName    string
+	VisitCount    int64
+	TotalDuration int64
+	UniqueDays    int64
+	FirstVisitTS  int64
+	LastVisitTS   int64
+	TotalDistance float64
 }
 
 // computeAdminStats computes statistics for a specific admin level

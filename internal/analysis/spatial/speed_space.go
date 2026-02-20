@@ -8,8 +8,8 @@ import (
 	"log"
 	"math"
 
-	"records-backend/internal/analysis"
-	"records-backend/internal/stats"
+	"github.com/jengzang/records-backend-go/internal/analysis"
+	"github.com/jengzang/records-backend-go/internal/stats"
 )
 
 // SpeedSpaceAnalyzer implements speed-space coupling analysis

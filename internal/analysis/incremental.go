@@ -92,7 +92,7 @@ func (a *IncrementalAnalyzer) ProcessInBatches(
 			processed = total
 		}
 
-		if err := a.UpdateTaskProgress(taskID, processed, total, failed); err != nil {
+		if err := a.UpdateTaskProgress(taskID, int64(processed), int64(total), int64(failed)); err != nil {
 			return fmt.Errorf("failed to update progress: %w", err)
 		}
 
@@ -314,11 +314,6 @@ func (a *IncrementalAnalyzer) MarkTaskAsCompleted(taskID int64, resultSummary ..
 
 // UpdateTaskProgress updates the progress of an analysis task
 func (a *IncrementalAnalyzer) UpdateTaskProgress(taskID int64, total, processed, failed int64) error {
-	percent := 0.0
-	if total > 0 {
-		percent = float64(processed) / float64(total) * 100.0
-	}
-
 	query := `
 		UPDATE analysis_tasks
 		SET processed_points = ?,

@@ -66,15 +66,4 @@ type TripsResponse struct {
 	TotalPages int    `json:"totalPages"`
 }
 
-// TripFilter represents filter parameters for querying trips
-type TripFilter struct {
-	StartTime     int64   `form:"startTime"`
-	EndTime       int64   `form:"endTime"`
-	OriginCity    string  `form:"originCity"`
-	DestCity      string  `form:"destCity"`
-	MinDistance   float64 `form:"minDistance"`
-	PrimaryMode   string  `form:"primaryMode"`
-	TripType      string  `form:"tripType"`
-	Page          int     `form:"page"`
-	PageSize      int     `form:"pageSize"`
-}
+// TripFilter is defined in filters.go

@@ -178,18 +178,18 @@ func GeohashNeighbors(geohash string) []string {
 func GeohashCellSize(precision int) float64 {
 	// Approximate cell sizes at equator
 	sizes := map[int]float64{
-		1:  5000000,  // ±2500 km
-		2:  625000,   // ±312.5 km
-		3:  123000,   // ±61.5 km
-		4:  19500,    // ±9.75 km
-		5:  3900,     // ±1.95 km
-		6:  610,      // ±305 m
-		7:  120,      // ±60 m
-		8:  19,       // ±9.5 m
-		9:  3.7,      // ±1.85 m
-		10: 0.6,      // ±30 cm
-		11: 0.12,     // ±6 cm
-		12: 0.019,    // ±0.95 cm
+		1:  5000000, // ±2500 km
+		2:  625000,  // ±312.5 km
+		3:  123000,  // ±61.5 km
+		4:  19500,   // ±9.75 km
+		5:  3900,    // ±1.95 km
+		6:  610,     // ±305 m
+		7:  120,     // ±60 m
+		8:  19,      // ±9.5 m
+		9:  3.7,     // ±1.85 m
+		10: 0.6,     // ±30 cm
+		11: 0.12,    // ±6 cm
+		12: 0.019,   // ±0.95 cm
 	}
 
 	if size, ok := sizes[precision]; ok {

@@ -8,7 +8,7 @@ import (
 	"log"
 	"time"
 
-	"records-backend/internal/analysis"
+	"github.com/jengzang/records-backend-go/internal/analysis"
 )
 
 // StayAnalyzer implements stay statistics aggregation
@@ -99,11 +99,11 @@ func (a *StayAnalyzer) Analyze(ctx context.Context, taskID int64, mode string) e
 
 		for rows.Next() {
 			var (
-				id                                                int64
-				startTS, endTS, durationS                         int64
-				stayType                                          string
-				province, city, county, town                      sql.NullString
-				year, month, day, hour, weekday                   string
+				id                              int64
+				startTS, endTS, durationS       int64
+				stayType                        string
+				province, city, county, town    sql.NullString
+				year, month, day, hour, weekday string
 			)
 
 			if err := rows.Scan(&id, &startTS, &endTS, &durationS, &stayType, &province, &city, &county, &town, &year, &month, &day, &hour, &weekday); err != nil {

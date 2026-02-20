@@ -12,6 +12,10 @@ type GridCell struct {
 	X      int    `json:"x" db:"x"`             // Grid X coordinate
 	Y      int    `json:"y" db:"y"`             // Grid Y coordinate
 
+	// Center point
+	CenterLat float64 `json:"center_lat" db:"center_lat"`
+	CenterLon float64 `json:"center_lon" db:"center_lon"`
+
 	// Bounding box
 	MinLat float64 `json:"min_lat" db:"min_lat"`
 	MaxLat float64 `json:"max_lat" db:"max_lat"`
@@ -19,11 +23,14 @@ type GridCell struct {
 	MaxLon float64 `json:"max_lon" db:"max_lon"`
 
 	// Statistics
-	PointCount          int   `json:"point_count" db:"point_count"`
-	VisitCount          int   `json:"visit_count" db:"visit_count"`                     // Number of distinct visits
-	TotalDurationSeconds int64 `json:"total_duration_seconds" db:"total_duration_seconds"`
-	FirstVisitTime      int64 `json:"first_visit_time,omitempty" db:"first_visit_time"` // Unix timestamp
-	LastVisitTime       int64 `json:"last_visit_time,omitempty" db:"last_visit_time"`   // Unix timestamp
+	PointCount          int    `json:"point_count" db:"point_count"`
+	VisitCount          int    `json:"visit_count" db:"visit_count"`                     // Number of distinct visits
+	TotalDurationSeconds int64  `json:"total_duration_seconds" db:"total_duration_seconds"`
+	FirstVisit          int64  `json:"first_visit,omitempty" db:"first_visit"`           // Unix timestamp (alias for FirstVisitTime)
+	LastVisit           int64  `json:"last_visit,omitempty" db:"last_visit"`             // Unix timestamp (alias for LastVisitTime)
+	FirstVisitTime      int64  `json:"first_visit_time,omitempty" db:"first_visit_time"` // Unix timestamp
+	LastVisitTime       int64  `json:"last_visit_time,omitempty" db:"last_visit_time"`   // Unix timestamp
+	ModesJSON           string `json:"modes_json,omitempty" db:"modes_json"`             // JSON array of transport modes
 
 	// Movement characteristics
 	AvgSpeedKmh  float64 `json:"avg_speed_kmh,omitempty" db:"avg_speed_kmh"`

@@ -8,7 +8,7 @@ import (
 	"log"
 	"time"
 
-	"records-backend/internal/analysis"
+	"github.com/jengzang/records-backend-go/internal/analysis"
 )
 
 // FootprintAnalyzer implements footprint statistics aggregation

@@ -35,15 +35,4 @@ type StaysResponse struct {
 	TotalPages int    `json:"totalPages"`
 }
 
-// StayFilter represents filter parameters for querying stays
-type StayFilter struct {
-	StartTime   int64  `form:"startTime"`
-	EndTime     int64  `form:"endTime"`
-	Province    string `form:"province"`
-	City        string `form:"city"`
-	County      string `form:"county"`
-	MinDuration int64  `form:"minDuration"`  // Minimum duration in seconds
-	StayType    string `form:"stayType"`
-	Page        int    `form:"page"`
-	PageSize    int    `form:"pageSize"`
-}
+// StayFilter is defined in filters.go

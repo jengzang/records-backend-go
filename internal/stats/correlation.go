@@ -12,7 +12,7 @@ func PearsonCorrelation(x, y []float64) float64 {
 		return 0
 	}
 
-	n := float64(len(x))
+	_ = float64(len(x)) // n is calculated but not used
 	meanX := Mean(x)
 	meanY := Mean(y)
 

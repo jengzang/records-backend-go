@@ -8,8 +8,8 @@ import (
 	"log"
 	"sort"
 
-	"records-backend/internal/analysis"
-	"records-backend/internal/stats"
+	"github.com/jengzang/records-backend-go/internal/analysis"
+	"github.com/jengzang/records-backend-go/internal/stats"
 )
 
 // ExtremeEventsAnalyzer implements extreme events detection

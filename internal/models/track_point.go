@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 // TrackPoint represents a GPS track point with administrative division information
 type TrackPoint struct {
 	ID           int64   `json:"id" db:"id"`
