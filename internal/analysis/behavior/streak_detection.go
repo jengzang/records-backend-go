@@ -61,13 +61,6 @@ func (a *StreakDetectionAnalyzer) Analyze(ctx context.Context, taskID int64, mod
 	}
 	defer rows.Close()
 
-	type DailyStats struct {
-		Date          string
-		TotalDistance float64
-		PointCount    int64
-		Duration      int64
-	}
-
 	var dailyStats []DailyStats
 	for rows.Next() {
 		var stats DailyStats
@@ -122,6 +115,14 @@ func (a *StreakDetectionAnalyzer) Analyze(ctx context.Context, taskID int64, mod
 
 	log.Printf("[StreakDetectionAnalyzer] Analysis completed: %d days processed, %d streaks detected", len(dailyStats), len(streaks))
 	return nil
+}
+
+// DailyStats holds daily statistics
+type DailyStats struct {
+	Date          string
+	TotalDistance float64
+	PointCount    int64
+	Duration      int64
 }
 
 // Streak holds streak data

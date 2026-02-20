@@ -102,7 +102,7 @@ func (a *AltitudeDimensionAnalyzer) Analyze(ctx context.Context, taskID int64, m
 
 		if prevPoint != nil {
 			altChange := point.Altitude - prevPoint.Altitude
-			duration := point.DataTime - prevPoint.DataTime
+			_ = point.DataTime - prevPoint.DataTime // duration unused for now
 
 			// Detect event start
 			if currentEvent == nil {

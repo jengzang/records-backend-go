@@ -147,8 +147,8 @@ type TrackPoint struct {
 	GridID    string
 }
 
-// Segment holds segment data
-type Segment struct {
+// TransportSegment holds segment data for transport mode classification
+type TransportSegment struct {
 	Mode      string
 	StartTS   int64
 	EndTS     int64
@@ -166,13 +166,13 @@ type Segment struct {
 }
 
 // classifySegments classifies points into transport mode segments
-func (a *TransportModeAnalyzer) classifySegments(points []TrackPoint) []Segment {
+func (a *TransportModeAnalyzer) classifySegments(points []TrackPoint) []TransportSegment {
 	if len(points) == 0 {
 		return nil
 	}
 
-	var segments []Segment
-	var currentSegment *Segment
+	var segments []TransportSegment
+	var currentSegment *TransportSegment
 	var segmentPoints []TrackPoint
 
 	for i, point := range points {
@@ -180,7 +180,7 @@ func (a *TransportModeAnalyzer) classifySegments(points []TrackPoint) []Segment 
 
 		if currentSegment == nil {
 			// Start new segment
-			currentSegment = &Segment{
+			currentSegment = &TransportSegment{
 				Mode:     mode,
 				StartTS:  point.Timestamp,
 				StartLat: point.Lat,
@@ -221,7 +221,7 @@ func (a *TransportModeAnalyzer) classifySegments(points []TrackPoint) []Segment 
 
 			// Start new segment if not last point
 			if i < len(points)-1 {
-				currentSegment = &Segment{
+				currentSegment = &TransportSegment{
 					Mode:     mode,
 					StartTS:  point.Timestamp,
 					StartLat: point.Lat,
@@ -267,7 +267,7 @@ func (a *TransportModeAnalyzer) classifyMode(speed float64) string {
 }
 
 // insertSegments inserts segments into the database
-func (a *TransportModeAnalyzer) insertSegments(ctx context.Context, segments []Segment) error {
+func (a *TransportModeAnalyzer) insertSegments(ctx context.Context, segments []TransportSegment) error {
 	if len(segments) == 0 {
 		return nil
 	}

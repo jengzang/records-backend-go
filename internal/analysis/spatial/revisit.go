@@ -7,7 +7,6 @@ import (
 	"log"
 
 	"github.com/jengzang/records-backend-go/internal/analysis"
-	"github.com/jengzang/records-backend-go/internal/spatial"
 	"github.com/jengzang/records-backend-go/internal/stats"
 )
 
@@ -109,7 +108,7 @@ func (a *RevisitAnalyzer) Analyze(ctx context.Context, taskID int64, mode string
 
 		// Update progress periodically
 		if processed%100 == 0 {
-			a.UpdateTaskProgress(taskID, processed, len(locations), 0)
+			a.UpdateTaskProgress(taskID, int64(processed), int64(len(locations)), 0)
 		}
 	}
 
@@ -120,8 +119,14 @@ func (a *RevisitAnalyzer) Analyze(ctx context.Context, taskID int64, mode string
 
 	log.Printf("Processed %d revisit locations", len(locations))
 
+	// Convert locations to []interface{} for insertResults
+	locationsInterface := make([]interface{}, len(locations))
+	for i, loc := range locations {
+		locationsInterface[i] = loc
+	}
+
 	// Insert results into database
-	if err := a.insertResults(locations); err != nil {
+	if err := a.insertResults(locationsInterface); err != nil {
 		a.MarkTaskAsFailed(taskID, fmt.Sprintf("Insert failed: %v", err))
 		return fmt.Errorf("failed to insert results: %w", err)
 	}

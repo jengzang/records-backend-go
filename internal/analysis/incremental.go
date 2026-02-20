@@ -327,3 +327,21 @@ func (a *IncrementalAnalyzer) UpdateTaskProgress(taskID int64, total, processed,
 	return err
 }
 
+// GetLastProcessedID retrieves the last processed point ID for incremental analysis
+func (a *IncrementalAnalyzer) GetLastProcessedID(taskID int64) int64 {
+	query := `
+		SELECT COALESCE(MAX(last_processed_id), 0)
+		FROM analysis_tasks
+		WHERE id = ? OR (skill_name = (SELECT skill_name FROM analysis_tasks WHERE id = ?) AND status = 'completed')
+		ORDER BY completed_at DESC
+		LIMIT 1
+	`
+
+	var lastID int64
+	err := a.DB.QueryRow(query, taskID, taskID).Scan(&lastID)
+	if err != nil {
+		return 0
+	}
+
+	return lastID
+}
