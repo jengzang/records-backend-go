@@ -178,7 +178,7 @@ class StayDetectionWorker:
             confidence = min(1.0, point_count / 10.0)  # Max confidence at 10+ points
 
             # Get admin info from first point
-            admin_info = cluster_points[0]
+            admin_info = dict(cluster_points[0])
 
             # Determine stay type (SPATIAL for DBSCAN-based detection)
             stay_type = 'SPATIAL'
