@@ -13,7 +13,9 @@ import (
 	_ "github.com/jengzang/records-backend-go/internal/analysis/foundation"
 	_ "github.com/jengzang/records-backend-go/internal/analysis/spatial"
 	_ "github.com/jengzang/records-backend-go/internal/analysis/stats"
+	_ "github.com/jengzang/records-backend-go/internal/analysis/temporal"
 	_ "github.com/jengzang/records-backend-go/internal/analysis/viz"
+	_ "github.com/jengzang/records-backend-go/internal/analysis/python" // Phase 5 Python workers
 )
 
 func main() {
