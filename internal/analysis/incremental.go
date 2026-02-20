@@ -303,7 +303,7 @@ func (a *IncrementalAnalyzer) MarkTaskAsCompleted(taskID int64, resultSummary ..
 		SET status = 'completed',
 		    progress_percent = 100,
 		    result_summary = ?,
-		    end_time = CURRENT_TIMESTAMP,
+		    end_time = CAST(strftime('%s', 'now') AS INTEGER),
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`

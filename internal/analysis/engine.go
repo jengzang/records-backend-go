@@ -74,7 +74,7 @@ func (a *BaseAnalyzer) MarkTaskAsRunning(taskID int64) error {
 	query := `
 		UPDATE analysis_tasks
 		SET status = 'running',
-		    start_time = strftime('%s', 'now'),
+		    start_time = CAST(strftime('%s', 'now') AS INTEGER),
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`
@@ -89,7 +89,7 @@ func (a *BaseAnalyzer) MarkTaskAsCompleted(taskID int64) error {
 		UPDATE analysis_tasks
 		SET status = 'completed',
 		    progress_percent = 100,
-		    end_time = strftime('%s', 'now'),
+		    end_time = CAST(strftime('%s', 'now') AS INTEGER),
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`
@@ -104,7 +104,7 @@ func (a *BaseAnalyzer) MarkTaskAsFailed(taskID int64, errorMsg string) error {
 		UPDATE analysis_tasks
 		SET status = 'failed',
 		    error_message = ?,
-		    end_time = strftime('%s', 'now'),
+		    end_time = CAST(strftime('%s', 'now') AS INTEGER),
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`
