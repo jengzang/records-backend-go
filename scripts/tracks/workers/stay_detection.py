@@ -42,8 +42,8 @@ class StayDetectionWorker:
         cursor.execute("""
             UPDATE analysis_tasks
             SET status = 'running',
-                started_at = CURRENT_TIMESTAMP,
-                progress = 0.0
+                start_time = CAST(strftime('%s', 'now') AS INTEGER),
+                progress_percent = 0
             WHERE id = ?
         """, (self.task_id,))
         self.conn.commit()
@@ -53,17 +53,17 @@ class StayDetectionWorker:
         cursor = self.conn.cursor()
         cursor.execute("""
             UPDATE analysis_tasks
-            SET progress = ?,
-                progress_message = ?
+            SET progress_percent = ?,
+                result_summary = ?
             WHERE id = ?
-        """, (progress, message, self.task_id))
+        """, (int(progress * 100), message, self.task_id))
         self.conn.commit()
 
     def load_data(self):
         """Load track points from database"""
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT id, dataTime, latitude, longitude, province, city, county
+            SELECT id, dataTime, latitude, longitude, province, city, county, town, village
             FROM "一生足迹"
             WHERE latitude IS NOT NULL
               AND longitude IS NOT NULL
@@ -155,9 +155,9 @@ class StayDetectionWorker:
             cluster_points = [points[i] for i in cluster_indices]
 
             # Calculate stay properties
-            start_ts = min(p['dataTime'] for p in cluster_points)
-            end_ts = max(p['dataTime'] for p in cluster_points)
-            duration_s = end_ts - start_ts
+            start_time = min(p['dataTime'] for p in cluster_points)
+            end_time = max(p['dataTime'] for p in cluster_points)
+            duration_s = end_time - start_time
 
             # Filter by minimum duration
             if duration_s < self.min_duration_s:
@@ -167,6 +167,12 @@ class StayDetectionWorker:
             center_lat = np.mean([p['latitude'] for p in cluster_points])
             center_lon = np.mean([p['longitude'] for p in cluster_points])
 
+            # Calculate radius (max distance from center)
+            radius_m = max(
+                self.haversine_distance(center_lat, center_lon, p['latitude'], p['longitude'])
+                for p in cluster_points
+            )
+
             # Calculate confidence based on cluster density
             point_count = len(cluster_points)
             confidence = min(1.0, point_count / 10.0)  # Max confidence at 10+ points
@@ -174,18 +180,39 @@ class StayDetectionWorker:
             # Get admin info from first point
             admin_info = cluster_points[0]
 
+            # Determine stay type (SPATIAL for DBSCAN-based detection)
+            stay_type = 'SPATIAL'
+
+            # Create reason codes (why this was detected as a stay)
+            reason_codes = ['dbscan_cluster', 'min_duration_met']
+            if point_count >= 10:
+                reason_codes.append('high_point_density')
+
+            # Create metadata
+            metadata = {
+                'algorithm': 'dbscan',
+                'eps_m': self.spatial_eps_m,
+                'min_samples': self.min_samples,
+                'cluster_label': int(label)
+            }
+
             stays.append({
-                'start_ts': start_ts,
-                'end_ts': end_ts,
+                'stay_type': stay_type,
+                'start_time': start_time,
+                'end_time': end_time,
                 'duration_s': duration_s,
                 'center_lat': center_lat,
                 'center_lon': center_lon,
+                'radius_m': radius_m,
                 'point_count': point_count,
                 'confidence': confidence,
                 'province': admin_info.get('province'),
                 'city': admin_info.get('city'),
                 'county': admin_info.get('county'),
-                'cluster_id': int(label)
+                'town': admin_info.get('town'),
+                'village': admin_info.get('village'),
+                'reason_codes': json.dumps(reason_codes),
+                'metadata': json.dumps(metadata)
             })
 
         self.update_progress(0.8, f"Found {len(stays)} stay segments")
@@ -203,19 +230,21 @@ class StayDetectionWorker:
         for stay in stays:
             cursor.execute("""
                 INSERT INTO stay_segments (
-                    start_ts, end_ts, duration_s,
-                    center_lat, center_lon,
+                    stay_type, start_time, end_time, duration_s,
+                    center_lat, center_lon, radius_m,
+                    province, city, county, town, village,
                     point_count, confidence,
-                    province, city, county,
-                    cluster_id, cluster_confidence,
-                    algo_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1_dbscan')
+                    reason_codes, metadata,
+                    algo_version, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1_dbscan',
+                          CAST(strftime('%s', 'now') AS INTEGER),
+                          CAST(strftime('%s', 'now') AS INTEGER))
             """, (
-                stay['start_ts'], stay['end_ts'], stay['duration_s'],
-                stay['center_lat'], stay['center_lon'],
+                stay['stay_type'], stay['start_time'], stay['end_time'], stay['duration_s'],
+                stay['center_lat'], stay['center_lon'], stay['radius_m'],
+                stay['province'], stay['city'], stay['county'], stay['town'], stay['village'],
                 stay['point_count'], stay['confidence'],
-                stay['province'], stay['city'], stay['county'],
-                stay['cluster_id'], stay['confidence']
+                stay['reason_codes'], stay['metadata']
             ))
 
         self.conn.commit()
@@ -226,8 +255,8 @@ class StayDetectionWorker:
         cursor.execute("""
             UPDATE analysis_tasks
             SET status = 'completed',
-                completed_at = CURRENT_TIMESTAMP,
-                progress = 1.0,
+                end_time = CAST(strftime('%s', 'now') AS INTEGER),
+                progress_percent = 100,
                 result_summary = ?
             WHERE id = ?
         """, (json.dumps(summary), self.task_id))
@@ -239,8 +268,8 @@ class StayDetectionWorker:
         cursor.execute("""
             UPDATE analysis_tasks
             SET status = 'failed',
-                completed_at = CURRENT_TIMESTAMP,
-                error_message = ?
+                end_time = CAST(strftime('%s', 'now') AS INTEGER),
+                result_summary = ?
             WHERE id = ?
         """, (error_msg, self.task_id))
         self.conn.commit()
