@@ -6,14 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/jengzang/records-backend-go/internal/analysis"
-	"github.com/jengzang/records-backend-go/internal/spatial"
 )
 
 // GridSystemAnalyzer implements grid-based spatial indexing
 // Skill: 网格系统 (Grid System)
-// Creates geohash-based spatial index for trajectory points
+// Creates hierarchical grid system for trajectory points
 type GridSystemAnalyzer struct {
 	*analysis.IncrementalAnalyzer
 }
@@ -42,23 +42,27 @@ func (a *GridSystemAnalyzer) Analyze(ctx context.Context, taskID int64, mode str
 		log.Printf("[GridSystemAnalyzer] Cleared existing grid cells")
 	}
 
-	// Process multiple precision levels (4-7 characters)
-	precisions := []int{4, 5, 6, 7}
+	// Process multiple zoom levels (8-15)
+	// Level 8: ~150km cells (country/province level)
+	// Level 10: ~40km cells (city level)
+	// Level 12: ~10km cells (district level)
+	// Level 15: ~1km cells (neighborhood level)
+	levels := []int{8, 10, 12, 15}
 	totalCells := 0
 
-	for _, precision := range precisions {
-		cells, err := a.processGridLevel(ctx, precision)
+	for _, level := range levels {
+		cells, err := a.processGridLevel(ctx, level)
 		if err != nil {
-			return fmt.Errorf("failed to process grid level %d: %w", precision, err)
+			return fmt.Errorf("failed to process grid level %d: %w", level, err)
 		}
 		totalCells += len(cells)
-		log.Printf("[GridSystemAnalyzer] Processed precision %d: %d cells", precision, len(cells))
+		log.Printf("[GridSystemAnalyzer] Processed level %d: %d cells", level, len(cells))
 	}
 
 	// Mark task as completed
 	summary := map[string]interface{}{
 		"total_cells": totalCells,
-		"precisions":  precisions,
+		"levels":      levels,
 	}
 	summaryJSON, _ := json.Marshal(summary)
 
@@ -70,8 +74,8 @@ func (a *GridSystemAnalyzer) Analyze(ctx context.Context, taskID int64, mode str
 	return nil
 }
 
-// processGridLevel processes a single precision level
-func (a *GridSystemAnalyzer) processGridLevel(ctx context.Context, precision int) ([]GridCell, error) {
+// processGridLevel processes a single zoom level
+func (a *GridSystemAnalyzer) processGridLevel(ctx context.Context, level int) ([]GridCell, error) {
 	// Get all track points
 	pointsQuery := `
 		SELECT
@@ -101,33 +105,47 @@ func (a *GridSystemAnalyzer) processGridLevel(ctx context.Context, precision int
 			return nil, fmt.Errorf("failed to scan point: %w", err)
 		}
 
-		// Calculate geohash
-		geohash := spatial.EncodeGeohash(lat, lon, precision)
+		// Calculate grid cell coordinates
+		gridX, gridY := latLonToTile(lat, lon, level)
+		gridID := fmt.Sprintf("L%d_%d_%d", level, gridX, gridY)
+
+		// Calculate cell bounds
+		minLat, minLon, maxLat, maxLon := tileToBounds(gridX, gridY, level)
+		centerLat := (minLat + maxLat) / 2
+		centerLon := (minLon + maxLon) / 2
 
 		// Update or create cell
-		if cell, exists := cellMap[geohash]; exists {
+		if cell, exists := cellMap[gridID]; exists {
+			cell.PointCount++
 			cell.VisitCount++
-			if timestamp < cell.FirstVisitTS {
-				cell.FirstVisitTS = timestamp
+			if timestamp < cell.FirstVisit {
+				cell.FirstVisit = timestamp
 			}
-			if timestamp > cell.LastVisitTS {
-				cell.LastVisitTS = timestamp
+			if timestamp > cell.LastVisit {
+				cell.LastVisit = timestamp
 			}
 		} else {
-			cellMap[geohash] = &GridCell{
-				GridID:       geohash,
-				Precision:    precision,
-				VisitCount:   1,
-				FirstVisitTS: timestamp,
-				LastVisitTS:  timestamp,
+			cellMap[gridID] = &GridCell{
+				GridID:     gridID,
+				Level:      level,
+				BBoxMinLat: minLat,
+				BBoxMinLon: minLon,
+				BBoxMaxLat: maxLat,
+				BBoxMaxLon: maxLon,
+				CenterLat:  centerLat,
+				CenterLon:  centerLon,
+				PointCount: 1,
+				VisitCount: 1,
+				FirstVisit: timestamp,
+				LastVisit:  timestamp,
 			}
 		}
 	}
 
-	// Convert map to slice
+	// Convert map to slice and calculate durations
 	var cells []GridCell
 	for _, cell := range cellMap {
-		cell.TotalDurationS = cell.LastVisitTS - cell.FirstVisitTS
+		cell.TotalDurationS = cell.LastVisit - cell.FirstVisit
 		cells = append(cells, *cell)
 	}
 
@@ -142,11 +160,18 @@ func (a *GridSystemAnalyzer) processGridLevel(ctx context.Context, precision int
 // GridCell holds grid cell data
 type GridCell struct {
 	GridID         string
-	Precision      int
+	Level          int
+	BBoxMinLat     float64
+	BBoxMinLon     float64
+	BBoxMaxLat     float64
+	BBoxMaxLon     float64
+	CenterLat      float64
+	CenterLon      float64
+	PointCount     int64
 	VisitCount     int64
+	FirstVisit     int64
+	LastVisit      int64
 	TotalDurationS int64
-	FirstVisitTS   int64
-	LastVisitTS    int64
 }
 
 // insertGridCells inserts grid cells into the database
@@ -163,9 +188,13 @@ func (a *GridSystemAnalyzer) insertGridCells(ctx context.Context, cells []GridCe
 
 	insertQuery := `
 		INSERT INTO grid_cells (
-			grid_id, precision, visit_count, total_duration_s,
-			first_visit_ts, last_visit_ts, algo_version, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, 'v1', CURRENT_TIMESTAMP)
+			grid_id, level, bbox_min_lat, bbox_min_lon, bbox_max_lat, bbox_max_lon,
+			center_lat, center_lon, point_count, visit_count,
+			first_visit, last_visit, total_duration_s, modes, metadata,
+			created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				  CAST(strftime('%s', 'now') AS INTEGER),
+				  CAST(strftime('%s', 'now') AS INTEGER))
 	`
 
 	stmt, err := tx.PrepareContext(ctx, insertQuery)
@@ -175,13 +204,26 @@ func (a *GridSystemAnalyzer) insertGridCells(ctx context.Context, cells []GridCe
 	defer stmt.Close()
 
 	for _, cell := range cells {
+		// Create empty JSON arrays/objects for modes and metadata
+		modes := "[]"
+		metadata := "{}"
+
 		_, err := stmt.ExecContext(ctx,
 			cell.GridID,
-			cell.Precision,
+			cell.Level,
+			cell.BBoxMinLat,
+			cell.BBoxMinLon,
+			cell.BBoxMaxLat,
+			cell.BBoxMaxLon,
+			cell.CenterLat,
+			cell.CenterLon,
+			cell.PointCount,
 			cell.VisitCount,
+			cell.FirstVisit,
+			cell.LastVisit,
 			cell.TotalDurationS,
-			cell.FirstVisitTS,
-			cell.LastVisitTS,
+			modes,
+			metadata,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert grid cell: %w", err)
@@ -194,6 +236,33 @@ func (a *GridSystemAnalyzer) insertGridCells(ctx context.Context, cells []GridCe
 
 	log.Printf("[GridSystemAnalyzer] Inserted %d grid cells", len(cells))
 	return nil
+}
+
+// latLonToTile converts lat/lon to tile coordinates at given zoom level
+// Uses Web Mercator projection (EPSG:3857)
+func latLonToTile(lat, lon float64, zoom int) (x, y int) {
+	n := math.Pow(2, float64(zoom))
+	x = int((lon + 180.0) / 360.0 * n)
+	latRad := lat * math.Pi / 180.0
+	y = int((1.0 - math.Log(math.Tan(latRad)+1.0/math.Cos(latRad))/math.Pi) / 2.0 * n)
+	return x, y
+}
+
+// tileToBounds converts tile coordinates to lat/lon bounds
+func tileToBounds(x, y, zoom int) (minLat, minLon, maxLat, maxLon float64) {
+	n := math.Pow(2, float64(zoom))
+	minLon = float64(x)/n*360.0 - 180.0
+	maxLon = float64(x+1)/n*360.0 - 180.0
+	minLat = tileYToLat(y+1, zoom)
+	maxLat = tileYToLat(y, zoom)
+	return minLat, minLon, maxLat, maxLon
+}
+
+// tileYToLat converts tile Y coordinate to latitude
+func tileYToLat(y, zoom int) float64 {
+	n := math.Pow(2, float64(zoom))
+	latRad := math.Atan(math.Sinh(math.Pi * (1 - 2*float64(y)/n)))
+	return latRad * 180.0 / math.Pi
 }
 
 // Register the analyzer
