@@ -38,6 +38,12 @@ func Init(cfg Config) error {
 			return
 		}
 
+		// Set busy timeout to 30 seconds to handle concurrent access
+		_, err = db.Exec("PRAGMA busy_timeout=30000")
+		if err != nil {
+			return
+		}
+
 		// Enable foreign keys
 		_, err = db.Exec("PRAGMA foreign_keys=ON")
 		if err != nil {

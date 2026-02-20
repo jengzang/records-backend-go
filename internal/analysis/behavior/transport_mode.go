@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/jengzang/records-backend-go/internal/analysis"
 )
@@ -149,20 +150,19 @@ type TrackPoint struct {
 
 // TransportSegment holds segment data for transport mode classification
 type TransportSegment struct {
-	Mode      string
-	StartTS   int64
-	EndTS     int64
-	StartLat  float64
-	StartLon  float64
-	EndLat    float64
-	EndLon    float64
-	AvgSpeed  float64
-	MaxSpeed  float64
-	Province  string
-	City      string
-	County    string
-	Town      string
-	GridID    string
+	Mode          string
+	StartTime     int64
+	EndTime       int64
+	StartPointID  int64
+	EndPointID    int64
+	PointCount    int
+	DistanceM     float64
+	DurationS     int64
+	AvgSpeedKmh   float64
+	MaxSpeedKmh   float64
+	Confidence    float64
+	ReasonCodes   string // JSON array
+	Metadata      string // JSON object
 }
 
 // classifySegments classifies points into transport mode segments
@@ -181,16 +181,11 @@ func (a *TransportModeAnalyzer) classifySegments(points []TrackPoint) []Transpor
 		if currentSegment == nil {
 			// Start new segment
 			currentSegment = &TransportSegment{
-				Mode:     mode,
-				StartTS:  point.Timestamp,
-				StartLat: point.Lat,
-				StartLon: point.Lon,
-				MaxSpeed: point.Speed,
-				Province: point.Province,
-				City:     point.City,
-				County:   point.County,
-				Town:     point.Town,
-				GridID:   point.GridID,
+				Mode:         mode,
+				StartTime:    point.Timestamp,
+				StartPointID: point.ID,
+				MaxSpeedKmh:  point.Speed * 3.6, // Convert m/s to km/h
+				Confidence:   0.8,                // Default confidence
 			}
 			segmentPoints = []TrackPoint{point}
 		} else if mode != currentSegment.Mode || i == len(points)-1 {
@@ -200,38 +195,48 @@ func (a *TransportModeAnalyzer) classifySegments(points []TrackPoint) []Transpor
 			}
 
 			// Finalize segment
-			currentSegment.EndTS = segmentPoints[len(segmentPoints)-1].Timestamp
-			currentSegment.EndLat = segmentPoints[len(segmentPoints)-1].Lat
-			currentSegment.EndLon = segmentPoints[len(segmentPoints)-1].Lon
+			lastPoint := segmentPoints[len(segmentPoints)-1]
+			currentSegment.EndTime = lastPoint.Timestamp
+			currentSegment.EndPointID = lastPoint.ID
+			currentSegment.PointCount = len(segmentPoints)
+			currentSegment.DurationS = currentSegment.EndTime - currentSegment.StartTime
 
-			// Calculate average speed
+			// Calculate distance and speeds
 			totalSpeed := 0.0
-			for _, p := range segmentPoints {
-				totalSpeed += p.Speed
-				if p.Speed > currentSegment.MaxSpeed {
-					currentSegment.MaxSpeed = p.Speed
+			totalDistance := 0.0
+			for j, p := range segmentPoints {
+				speedKmh := p.Speed * 3.6
+				totalSpeed += speedKmh
+				if speedKmh > currentSegment.MaxSpeedKmh {
+					currentSegment.MaxSpeedKmh = speedKmh
+				}
+				// Calculate distance between consecutive points
+				if j > 0 {
+					prev := segmentPoints[j-1]
+					dist := haversineDistance(prev.Lat, prev.Lon, p.Lat, p.Lon)
+					totalDistance += dist
 				}
 			}
-			currentSegment.AvgSpeed = totalSpeed / float64(len(segmentPoints))
+			currentSegment.AvgSpeedKmh = totalSpeed / float64(len(segmentPoints))
+			currentSegment.DistanceM = totalDistance
+
+			// Set reason codes and metadata
+			currentSegment.ReasonCodes = "[]" // Empty JSON array for now
+			currentSegment.Metadata = "{}"    // Empty JSON object for now
 
 			// Only add segments with duration > 10 seconds
-			if currentSegment.EndTS-currentSegment.StartTS >= 10 {
+			if currentSegment.DurationS >= 10 {
 				segments = append(segments, *currentSegment)
 			}
 
 			// Start new segment if not last point
 			if i < len(points)-1 {
 				currentSegment = &TransportSegment{
-					Mode:     mode,
-					StartTS:  point.Timestamp,
-					StartLat: point.Lat,
-					StartLon: point.Lon,
-					MaxSpeed: point.Speed,
-					Province: point.Province,
-					City:     point.City,
-					County:   point.County,
-					Town:     point.Town,
-					GridID:   point.GridID,
+					Mode:         mode,
+					StartTime:    point.Timestamp,
+					StartPointID: point.ID,
+					MaxSpeedKmh:  point.Speed * 3.6,
+					Confidence:   0.8,
 				}
 				segmentPoints = []TrackPoint{point}
 			}
@@ -280,10 +285,10 @@ func (a *TransportModeAnalyzer) insertSegments(ctx context.Context, segments []T
 
 	insertQuery := `
 		INSERT INTO segments (
-			mode, start_ts, end_ts, start_lat, start_lon, end_lat, end_lon,
-			avg_speed_mps, max_speed_mps, province, city, county, town, grid_id,
-			outlier_flag, algo_version, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'v1', CURRENT_TIMESTAMP)
+			mode, start_time, end_time, start_point_id, end_point_id,
+			point_count, distance_m, duration_s, avg_speed_kmh, max_speed_kmh,
+			confidence, reason_codes, metadata, algo_version, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1.0', CAST(strftime('%s', 'now') AS INTEGER), CAST(strftime('%s', 'now') AS INTEGER))
 	`
 
 	stmt, err := tx.PrepareContext(ctx, insertQuery)
@@ -295,19 +300,18 @@ func (a *TransportModeAnalyzer) insertSegments(ctx context.Context, segments []T
 	for _, seg := range segments {
 		_, err := stmt.ExecContext(ctx,
 			seg.Mode,
-			seg.StartTS,
-			seg.EndTS,
-			seg.StartLat,
-			seg.StartLon,
-			seg.EndLat,
-			seg.EndLon,
-			seg.AvgSpeed,
-			seg.MaxSpeed,
-			seg.Province,
-			seg.City,
-			seg.County,
-			seg.Town,
-			seg.GridID,
+			seg.StartTime,
+			seg.EndTime,
+			seg.StartPointID,
+			seg.EndPointID,
+			seg.PointCount,
+			seg.DistanceM,
+			seg.DurationS,
+			seg.AvgSpeedKmh,
+			seg.MaxSpeedKmh,
+			seg.Confidence,
+			seg.ReasonCodes,
+			seg.Metadata,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert segment: %w", err)
@@ -320,6 +324,22 @@ func (a *TransportModeAnalyzer) insertSegments(ctx context.Context, segments []T
 
 	log.Printf("[TransportModeAnalyzer] Inserted %d segments", len(segments))
 	return nil
+}
+
+// haversineDistance calculates the distance between two points in meters
+func haversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
+	const R = 6371000 // Earth radius in meters
+	lat1Rad := lat1 * 3.14159265359 / 180
+	lat2Rad := lat2 * 3.14159265359 / 180
+	deltaLat := (lat2 - lat1) * 3.14159265359 / 180
+	deltaLon := (lon2 - lon1) * 3.14159265359 / 180
+
+	a := math.Sin(deltaLat/2)*math.Sin(deltaLat/2) +
+		math.Cos(lat1Rad)*math.Cos(lat2Rad)*
+			math.Sin(deltaLon/2)*math.Sin(deltaLon/2)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+	return R * c
 }
 
 // Register the analyzer
