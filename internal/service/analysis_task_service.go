@@ -208,8 +208,8 @@ func (s *AnalysisTaskService) TriggerAnalysisChain(taskType string, createdBy st
 		"stay_detection",
 		"trip_construction",
 		"grid_system",
-		"footprint_stats",
-		"stay_stats",
+		"footprint_statistics",
+		"stay_statistics",
 		"rendering_metadata",
 	}
 
