@@ -39,16 +39,16 @@ func (a *SpeedSpaceAnalyzer) Analyze(ctx context.Context, taskID int64, mode str
 	segmentsQuery := `
 		SELECT
 			s.id,
-			s.start_ts,
-			s.end_ts,
+			s.start_time,
+			s.end_time,
 			s.distance_m,
 			s.avg_speed_kmh,
 			s.mode,
 			p.province,
 			p.city,
 			p.county,
-			strftime('%Y', datetime(s.start_ts, 'unixepoch')) as year,
-			strftime('%Y-%m', datetime(s.start_ts, 'unixepoch')) as month
+			strftime('%Y', datetime(s.start_time, 'unixepoch')) as year,
+			strftime('%Y-%m', datetime(s.start_time, 'unixepoch')) as month
 		FROM segments s
 		LEFT JOIN "一生足迹" p ON s.start_point_id = p.id
 		WHERE s.avg_speed_kmh IS NOT NULL
@@ -171,6 +171,7 @@ type AreaSpeedStat struct {
 	AvgSpeed             float64
 	SpeedVariance        float64
 	SpeedEntropy         float64
+	SegmentCount         int
 	IsHighSpeedZone      bool
 	IsSlowLifeZone       bool
 	SpeedBins            map[int]float64 // Speed bins for entropy calculation
@@ -194,6 +195,7 @@ func (a *SpeedSpaceAnalyzer) aggregateAreaSpeed(stats map[string]*AreaSpeedStat,
 	// Update weighted statistics
 	stat.TotalDistance += distance
 	stat.TotalWeightedSpeed += speed * distance
+	stat.SegmentCount++
 
 	// Update speed bins for entropy calculation (10 km/h bins)
 	bin := int(speed / 10)
@@ -235,9 +237,24 @@ func (a *SpeedSpaceAnalyzer) insertSpeedSpaceResults(ctx context.Context, stats 
 	defer tx.Rollback()
 
 	insertQuery := `
-		INSERT INTO spatial_analysis (
-			analysis_type, area_type, area_key, time_range, result_json, created_at
-		) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		INSERT INTO speed_space_stats_bucketed (
+			bucket_type, bucket_key, area_type, area_key,
+			avg_speed, speed_variance, speed_entropy,
+			total_distance, segment_count,
+			is_high_speed_zone, is_slow_life_zone,
+			stay_intensity, algo_version
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+		ON CONFLICT(bucket_type, bucket_key, area_type, area_key)
+		DO UPDATE SET
+			avg_speed = excluded.avg_speed,
+			speed_variance = excluded.speed_variance,
+			speed_entropy = excluded.speed_entropy,
+			total_distance = excluded.total_distance,
+			segment_count = excluded.segment_count,
+			is_high_speed_zone = excluded.is_high_speed_zone,
+			is_slow_life_zone = excluded.is_slow_life_zone,
+			stay_intensity = excluded.stay_intensity,
+			created_at = CURRENT_TIMESTAMP
 	`
 
 	stmt, err := tx.PrepareContext(ctx, insertQuery)
@@ -247,22 +264,22 @@ func (a *SpeedSpaceAnalyzer) insertSpeedSpaceResults(ctx context.Context, stats 
 	defer stmt.Close()
 
 	for _, stat := range stats {
-		result := map[string]interface{}{
-			"avg_speed":         stat.AvgSpeed,
-			"speed_variance":    stat.SpeedVariance,
-			"speed_entropy":     stat.SpeedEntropy,
-			"is_high_speed_zone": stat.IsHighSpeedZone,
-			"is_slow_life_zone":  stat.IsSlowLifeZone,
-			"total_distance":    stat.TotalDistance,
-		}
-		resultJSON, _ := json.Marshal(result)
+		// Determine bucket type and key from time range
+		bucketType, bucketKey := a.parseBucketInfo(stat.TimeRange)
 
 		_, err := stmt.ExecContext(ctx,
-			"SPEED_SPACE_COUPLING",
+			bucketType,
+			bucketKey,
 			stat.AreaType,
 			stat.AreaKey,
-			stat.TimeRange,
-			string(resultJSON),
+			stat.AvgSpeed,
+			stat.SpeedVariance,
+			stat.SpeedEntropy,
+			stat.TotalDistance,
+			stat.SegmentCount,
+			stat.IsHighSpeedZone,
+			stat.IsSlowLifeZone,
+			0.0, // stay_intensity - will be calculated later if needed
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert result: %w", err)
@@ -274,6 +291,20 @@ func (a *SpeedSpaceAnalyzer) insertSpeedSpaceResults(ctx context.Context, stats 
 	}
 
 	return nil
+}
+
+// parseBucketInfo parses time range into bucket type and key
+func (a *SpeedSpaceAnalyzer) parseBucketInfo(timeRange string) (string, string) {
+	if timeRange == "all" {
+		return "all", "all"
+	}
+	if len(timeRange) == 4 { // Year: "2024"
+		return "year", timeRange
+	}
+	if len(timeRange) == 7 { // Month: "2024-01"
+		return "month", timeRange
+	}
+	return "all", "all"
 }
 
 // countHighSpeedZones counts the number of high-speed zones

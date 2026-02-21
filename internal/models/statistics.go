@@ -210,3 +210,22 @@ const (
 	AdminLevelCounty   = "COUNTY"
 	AdminLevelTown     = "TOWN"
 )
+
+// SpeedSpaceStats represents speed-space coupling statistics
+type SpeedSpaceStats struct {
+	ID             int64   `json:"id" db:"id"`
+	BucketType     string  `json:"bucket_type" db:"bucket_type"`       // year, month, all
+	BucketKey      string  `json:"bucket_key" db:"bucket_key"`         // 2024, 2024-01, all
+	AreaType       string  `json:"area_type" db:"area_type"`           // PROVINCE, CITY, COUNTY
+	AreaKey        string  `json:"area_key" db:"area_key"`             // Area name
+	AvgSpeed       float64 `json:"avg_speed" db:"avg_speed"`           // km/h
+	SpeedVariance  float64 `json:"speed_variance" db:"speed_variance"` // km/h²
+	SpeedEntropy   float64 `json:"speed_entropy" db:"speed_entropy"`   // Shannon entropy
+	TotalDistance  float64 `json:"total_distance" db:"total_distance"` // meters
+	SegmentCount   int     `json:"segment_count" db:"segment_count"`
+	IsHighSpeedZone bool   `json:"is_high_speed_zone" db:"is_high_speed_zone"`
+	IsSlowLifeZone  bool   `json:"is_slow_life_zone" db:"is_slow_life_zone"`
+	StayIntensity   float64 `json:"stay_intensity" db:"stay_intensity"`
+	AlgoVersion     int     `json:"algo_version" db:"algo_version"`
+	CreatedAt       string  `json:"created_at" db:"created_at"`
+}

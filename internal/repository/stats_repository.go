@@ -526,3 +526,178 @@ func (r *StatsRepository) GetAdminStats(adminLevel, adminName, parentName, sortB
 
 	return stats, nil
 }
+// GetSpeedSpaceStats retrieves speed-space coupling statistics
+func (r *StatsRepository) GetSpeedSpaceStats(bucketType, areaType, areaName string, limit int) ([]models.SpeedSpaceStats, error) {
+	query := `SELECT id, bucket_type, bucket_key, area_type, area_key,
+		avg_speed, speed_variance, speed_entropy, total_distance, segment_count,
+		is_high_speed_zone, is_slow_life_zone, stay_intensity,
+		algo_version, created_at
+		FROM speed_space_stats_bucketed`
+
+	var conditions []string
+	var args []interface{}
+
+	// Add filters
+	if bucketType != "" {
+		conditions = append(conditions, "bucket_type = ?")
+		args = append(args, bucketType)
+	}
+	if areaType != "" {
+		conditions = append(conditions, "area_type = ?")
+		args = append(args, areaType)
+	}
+	if areaName != "" {
+		conditions = append(conditions, "area_key = ?")
+		args = append(args, areaName)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Order by average speed descending
+	query += " ORDER BY avg_speed DESC"
+
+	// Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	query += " LIMIT ?"
+	args = append(args, limit)
+
+	// Execute query
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query speed-space stats: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []models.SpeedSpaceStats
+	for rows.Next() {
+		var s models.SpeedSpaceStats
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &s.BucketKey, &s.AreaType, &s.AreaKey,
+			&s.AvgSpeed, &s.SpeedVariance, &s.SpeedEntropy, &s.TotalDistance, &s.SegmentCount,
+			&s.IsHighSpeedZone, &s.IsSlowLifeZone, &s.StayIntensity,
+			&s.AlgoVersion, &s.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan speed-space stats: %w", err)
+		}
+		stats = append(stats, s)
+	}
+
+	return stats, nil
+}
+
+// GetHighSpeedZones retrieves high-speed zones
+func (r *StatsRepository) GetHighSpeedZones(bucketType, areaType string, limit int) ([]models.SpeedSpaceStats, error) {
+	query := `SELECT id, bucket_type, bucket_key, area_type, area_key,
+		avg_speed, speed_variance, speed_entropy, total_distance, segment_count,
+		is_high_speed_zone, is_slow_life_zone, stay_intensity,
+		algo_version, created_at
+		FROM speed_space_stats_bucketed
+		WHERE is_high_speed_zone = 1`
+
+	var args []interface{}
+
+	// Add filters
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+	if areaType != "" {
+		query += " AND area_type = ?"
+		args = append(args, areaType)
+	}
+
+	// Order by average speed descending
+	query += " ORDER BY avg_speed DESC"
+
+	// Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 50
+	}
+	query += " LIMIT ?"
+	args = append(args, limit)
+
+	// Execute query
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query high-speed zones: %w", err)
+	}
+	defer rows.Close()
+
+	var zones []models.SpeedSpaceStats
+	for rows.Next() {
+		var s models.SpeedSpaceStats
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &s.BucketKey, &s.AreaType, &s.AreaKey,
+			&s.AvgSpeed, &s.SpeedVariance, &s.SpeedEntropy, &s.TotalDistance, &s.SegmentCount,
+			&s.IsHighSpeedZone, &s.IsSlowLifeZone, &s.StayIntensity,
+			&s.AlgoVersion, &s.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan high-speed zone: %w", err)
+		}
+		zones = append(zones, s)
+	}
+
+	return zones, nil
+}
+
+// GetSlowLifeZones retrieves slow-life zones
+func (r *StatsRepository) GetSlowLifeZones(bucketType, areaType string, limit int) ([]models.SpeedSpaceStats, error) {
+	query := `SELECT id, bucket_type, bucket_key, area_type, area_key,
+		avg_speed, speed_variance, speed_entropy, total_distance, segment_count,
+		is_high_speed_zone, is_slow_life_zone, stay_intensity,
+		algo_version, created_at
+		FROM speed_space_stats_bucketed
+		WHERE is_slow_life_zone = 1`
+
+	var args []interface{}
+
+	// Add filters
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+	if areaType != "" {
+		query += " AND area_type = ?"
+		args = append(args, areaType)
+	}
+
+	// Order by average speed ascending (slowest first)
+	query += " ORDER BY avg_speed ASC"
+
+	// Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 50
+	}
+	query += " LIMIT ?"
+	args = append(args, limit)
+
+	// Execute query
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query slow-life zones: %w", err)
+	}
+	defer rows.Close()
+
+	var zones []models.SpeedSpaceStats
+	for rows.Next() {
+		var s models.SpeedSpaceStats
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &s.BucketKey, &s.AreaType, &s.AreaKey,
+			&s.AvgSpeed, &s.SpeedVariance, &s.SpeedEntropy, &s.TotalDistance, &s.SegmentCount,
+			&s.IsHighSpeedZone, &s.IsSlowLifeZone, &s.StayIntensity,
+			&s.AlgoVersion, &s.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan slow-life zone: %w", err)
+		}
+		zones = append(zones, s)
+	}
+
+	return zones, nil
+}

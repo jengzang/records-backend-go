@@ -108,6 +108,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/extreme-events", statsHandler.GetExtremeEvents)
 			stats.GET("/admin-crossings", statsHandler.GetAdminCrossings)
 			stats.GET("/admin-view", statsHandler.GetAdminView)
+
+			// Speed-space coupling endpoints
+			stats.GET("/speed-space", statsHandler.GetSpeedSpaceStats)
+			stats.GET("/speed-space/high-speed-zones", statsHandler.GetHighSpeedZones)
+			stats.GET("/speed-space/slow-life-zones", statsHandler.GetSlowLifeZones)
 		}
 
 		// 可视化接口

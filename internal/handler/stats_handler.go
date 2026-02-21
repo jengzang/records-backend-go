@@ -262,3 +262,67 @@ func (h *StatsHandler) GetAdminView(c *gin.Context) {
 		"count": len(stats),
 	})
 }
+
+// GetSpeedSpaceStats handles GET /api/v1/stats/speed-space
+func (h *StatsHandler) GetSpeedSpaceStats(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.DefaultQuery("area_type", "")
+	areaName := c.DefaultQuery("area_name", "")
+	limitStr := c.DefaultQuery("limit", "100")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	stats, err := h.statsService.GetSpeedSpaceStats(bucketType, areaType, areaName, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, stats)
+}
+
+// GetHighSpeedZones handles GET /api/v1/stats/speed-space/high-speed-zones
+func (h *StatsHandler) GetHighSpeedZones(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.DefaultQuery("area_type", "")
+	limitStr := c.DefaultQuery("limit", "50")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	zones, err := h.statsService.GetHighSpeedZones(bucketType, areaType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, zones)
+}
+
+// GetSlowLifeZones handles GET /api/v1/stats/speed-space/slow-life-zones
+func (h *StatsHandler) GetSlowLifeZones(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.DefaultQuery("area_type", "")
+	limitStr := c.DefaultQuery("limit", "50")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	zones, err := h.statsService.GetSlowLifeZones(bucketType, areaType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, zones)
+}

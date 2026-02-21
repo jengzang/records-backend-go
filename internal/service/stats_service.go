@@ -119,3 +119,17 @@ func (s *StatsService) GetAdminCrossings(crossingType, fromRegion, toRegion stri
 func (s *StatsService) GetAdminStats(adminLevel, adminName, parentName, sortBy string, limit int) ([]models.AdminStats, error) {
 	return s.statsRepo.GetAdminStats(adminLevel, adminName, parentName, sortBy, limit)
 }
+// GetSpeedSpaceStats retrieves speed-space coupling statistics
+func (s *StatsService) GetSpeedSpaceStats(bucketType, areaType, areaName string, limit int) ([]models.SpeedSpaceStats, error) {
+	return s.statsRepo.GetSpeedSpaceStats(bucketType, areaType, areaName, limit)
+}
+
+// GetHighSpeedZones retrieves high-speed zones
+func (s *StatsService) GetHighSpeedZones(bucketType, areaType string, limit int) ([]models.SpeedSpaceStats, error) {
+	return s.statsRepo.GetHighSpeedZones(bucketType, areaType, limit)
+}
+
+// GetSlowLifeZones retrieves slow-life zones
+func (s *StatsService) GetSlowLifeZones(bucketType, areaType string, limit int) ([]models.SpeedSpaceStats, error) {
+	return s.statsRepo.GetSlowLifeZones(bucketType, areaType, limit)
+}
