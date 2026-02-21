@@ -316,11 +316,21 @@ func (r *StatsRepository) GetStayRankings(filter models.StatsFilter) ([]models.S
 
 // GetExtremeEvents retrieves extreme events
 func (r *StatsRepository) GetExtremeEvents(eventType, eventCategory string, limit int) ([]models.ExtremeEvent, error) {
-	// Build query
-	query := `SELECT id, event_type, event_category, point_id, event_time, event_value,
-		latitude, longitude, province, city, county,
-		mode, segment_id, rank,
-		algo_version, created_at, updated_at
+	// Build query - use actual column names from database
+	query := `SELECT id, event_type,
+		COALESCE(event_category, '') as event_category,
+		point_id,
+		timestamp as event_time,
+		value as event_value,
+		latitude, longitude,
+		COALESCE(province, '') as province,
+		COALESCE(city, '') as city,
+		COALESCE(county, '') as county,
+		COALESCE(mode, '') as mode,
+		COALESCE(segment_id, 0) as segment_id,
+		COALESCE(rank, 0) as rank,
+		COALESCE(algo_version, 'v1') as algo_version,
+		created_at, updated_at
 		FROM extreme_events`
 
 	var conditions []string
@@ -340,8 +350,8 @@ func (r *StatsRepository) GetExtremeEvents(eventType, eventCategory string, limi
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 
-	// Order by rank
-	query += " ORDER BY rank ASC"
+	// Order by rank (or value if rank is not set)
+	query += " ORDER BY COALESCE(rank, 999999) ASC, value DESC"
 
 	// Limit
 	if limit <= 0 || limit > 100 {
@@ -373,4 +383,146 @@ func (r *StatsRepository) GetExtremeEvents(eventType, eventCategory string, limi
 	}
 
 	return events, nil
+}
+
+// GetAdminCrossings retrieves administrative boundary crossing events
+func (r *StatsRepository) GetAdminCrossings(crossingType, fromRegion, toRegion string, startTime, endTime int64, limit int) ([]models.AdminCrossing, error) {
+	// Build query
+	query := `SELECT id, crossing_ts, from_province, from_city, from_county, from_town,
+		to_province, to_city, to_county, to_town, crossing_type,
+		latitude, longitude, distance_from_prev_m, algo_version, created_at
+		FROM admin_crossings`
+
+	var conditions []string
+	var args []interface{}
+
+	// Add filters
+	if crossingType != "" {
+		conditions = append(conditions, "crossing_type = ?")
+		args = append(args, crossingType)
+	}
+	if startTime > 0 {
+		conditions = append(conditions, "crossing_ts >= ?")
+		args = append(args, startTime)
+	}
+	if endTime > 0 {
+		conditions = append(conditions, "crossing_ts <= ?")
+		args = append(args, endTime)
+	}
+	if fromRegion != "" {
+		conditions = append(conditions, "(from_province = ? OR from_city = ? OR from_county = ? OR from_town = ?)")
+		args = append(args, fromRegion, fromRegion, fromRegion, fromRegion)
+	}
+	if toRegion != "" {
+		conditions = append(conditions, "(to_province = ? OR to_city = ? OR to_county = ? OR to_town = ?)")
+		args = append(args, toRegion, toRegion, toRegion, toRegion)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Order by timestamp
+	query += " ORDER BY crossing_ts DESC"
+
+	// Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	query += " LIMIT ?"
+	args = append(args, limit)
+
+	// Execute query
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query admin crossings: %w", err)
+	}
+	defer rows.Close()
+
+	var crossings []models.AdminCrossing
+	for rows.Next() {
+		var c models.AdminCrossing
+		err := rows.Scan(
+			&c.ID, &c.CrossingTS, &c.FromProvince, &c.FromCity, &c.FromCounty, &c.FromTown,
+			&c.ToProvince, &c.ToCity, &c.ToCounty, &c.ToTown, &c.CrossingType,
+			&c.Latitude, &c.Longitude, &c.DistanceFromPrevM, &c.AlgoVersion, &c.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan admin crossing: %w", err)
+		}
+		crossings = append(crossings, c)
+	}
+
+	return crossings, nil
+}
+
+// GetAdminStats retrieves administrative region statistics
+func (r *StatsRepository) GetAdminStats(adminLevel, adminName, parentName, sortBy string, limit int) ([]models.AdminStats, error) {
+	// Build query
+	query := `SELECT id, admin_level, admin_name, parent_name, visit_count,
+		total_duration_s, unique_days, first_visit_ts, last_visit_ts,
+		total_distance_m, algo_version, created_at, updated_at
+		FROM admin_stats`
+
+	var conditions []string
+	var args []interface{}
+
+	// Add filters
+	if adminLevel != "" {
+		conditions = append(conditions, "admin_level = ?")
+		args = append(args, adminLevel)
+	}
+	if adminName != "" {
+		conditions = append(conditions, "admin_name = ?")
+		args = append(args, adminName)
+	}
+	if parentName != "" {
+		conditions = append(conditions, "parent_name = ?")
+		args = append(args, parentName)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Order by
+	orderBy := "visit_count DESC"
+	if sortBy == "duration" {
+		orderBy = "total_duration_s DESC"
+	} else if sortBy == "unique_days" {
+		orderBy = "unique_days DESC"
+	} else if sortBy == "distance" {
+		orderBy = "total_distance_m DESC"
+	}
+	query += " ORDER BY " + orderBy
+
+	// Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 50
+	}
+	query += " LIMIT ?"
+	args = append(args, limit)
+
+	// Execute query
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query admin stats: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []models.AdminStats
+	for rows.Next() {
+		var s models.AdminStats
+		err := rows.Scan(
+			&s.ID, &s.AdminLevel, &s.AdminName, &s.ParentName, &s.VisitCount,
+			&s.TotalDurationS, &s.UniqueDays, &s.FirstVisitTS, &s.LastVisitTS,
+			&s.TotalDistanceM, &s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan admin stats: %w", err)
+		}
+		stats = append(stats, s)
+	}
+
+	return stats, nil
 }

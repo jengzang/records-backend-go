@@ -47,11 +47,8 @@ func (a *ExtremeEventsAnalyzer) Analyze(ctx context.Context, taskID int64, mode 
 	tripsQuery := `
 		SELECT
 			id,
-			start_ts,
-			end_ts,
-			origin_province,
-			origin_city,
-			origin_county
+			start_time,
+			end_time
 		FROM trips
 		ORDER BY id
 	`
@@ -64,7 +61,7 @@ func (a *ExtremeEventsAnalyzer) Analyze(ctx context.Context, taskID int64, mode 
 	var trips []TripInfo
 	for rows.Next() {
 		var trip TripInfo
-		if err := rows.Scan(&trip.ID, &trip.StartTS, &trip.EndTS, &trip.Province, &trip.City, &trip.County); err != nil {
+		if err := rows.Scan(&trip.ID, &trip.StartTS, &trip.EndTS); err != nil {
 			rows.Close()
 			return fmt.Errorf("failed to scan trip: %w", err)
 		}
@@ -91,7 +88,10 @@ func (a *ExtremeEventsAnalyzer) Analyze(ctx context.Context, taskID int64, mode 
 				dataTime,
 				latitude,
 				longitude,
-				altitude
+				altitude,
+				province,
+				city,
+				county
 			FROM "一生足迹"
 			WHERE dataTime BETWEEN ? AND ?
 				AND outlier_flag = 0
@@ -107,12 +107,22 @@ func (a *ExtremeEventsAnalyzer) Analyze(ctx context.Context, taskID int64, mode 
 		for pointRows.Next() {
 			var point PointData
 			var altitude sql.NullFloat64
-			if err := pointRows.Scan(&point.ID, &point.Timestamp, &point.Lat, &point.Lon, &altitude); err != nil {
+			var province, city, county sql.NullString
+			if err := pointRows.Scan(&point.ID, &point.Timestamp, &point.Lat, &point.Lon, &altitude, &province, &city, &county); err != nil {
 				pointRows.Close()
 				return fmt.Errorf("failed to scan point: %w", err)
 			}
 			if altitude.Valid {
 				point.Alt = altitude.Float64
+			}
+			if province.Valid {
+				point.Province = province.String
+			}
+			if city.Valid {
+				point.City = city.String
+			}
+			if county.Valid {
+				point.County = county.String
 			}
 			points = append(points, point)
 		}
@@ -157,12 +167,9 @@ func (a *ExtremeEventsAnalyzer) Analyze(ctx context.Context, taskID int64, mode 
 
 // TripInfo holds trip information
 type TripInfo struct {
-	ID       int64
-	StartTS  int64
-	EndTS    int64
-	Province sql.NullString
-	City     sql.NullString
-	County   sql.NullString
+	ID      int64
+	StartTS int64
+	EndTS   int64
 }
 
 // PointData holds point data
@@ -172,6 +179,9 @@ type PointData struct {
 	Lat       float64
 	Lon       float64
 	Alt       float64
+	Province  string
+	City      string
+	County    string
 }
 
 // ExtremeEvent holds extreme event data
@@ -221,15 +231,9 @@ func (a *ExtremeEventsAnalyzer) calculateTripExtremes(extremes map[string]*Extre
 					Latitude:  p.Lat,
 					Longitude: p.Lon,
 					Timestamp: p.Timestamp,
-				}
-				if trip.Province.Valid {
-					event.Province = trip.Province.String
-				}
-				if trip.City.Valid {
-					event.City = trip.City.String
-				}
-				if trip.County.Valid {
-					event.County = trip.County.String
+					Province:  p.Province,
+					City:      p.City,
+					County:    p.County,
 				}
 				extremes[key] = event
 				break
@@ -253,15 +257,9 @@ func (a *ExtremeEventsAnalyzer) calculateTripExtremes(extremes map[string]*Extre
 					Latitude:  p.Lat,
 					Longitude: p.Lon,
 					Timestamp: p.Timestamp,
-				}
-				if trip.Province.Valid {
-					event.Province = trip.Province.String
-				}
-				if trip.City.Valid {
-					event.City = trip.City.String
-				}
-				if trip.County.Valid {
-					event.County = trip.County.String
+					Province:  p.Province,
+					City:      p.City,
+					County:    p.County,
 				}
 				extremes[key] = event
 				break
@@ -284,15 +282,9 @@ func (a *ExtremeEventsAnalyzer) calculateTripExtremes(extremes map[string]*Extre
 					Latitude:  p.Lat,
 					Longitude: p.Lon,
 					Timestamp: p.Timestamp,
-				}
-				if trip.Province.Valid {
-					event.Province = trip.Province.String
-				}
-				if trip.City.Valid {
-					event.City = trip.City.String
-				}
-				if trip.County.Valid {
-					event.County = trip.County.String
+					Province:  p.Province,
+					City:      p.City,
+					County:    p.County,
 				}
 				extremes[key] = event
 				break
@@ -316,15 +308,9 @@ func (a *ExtremeEventsAnalyzer) calculateTripExtremes(extremes map[string]*Extre
 					Latitude:  p.Lat,
 					Longitude: p.Lon,
 					Timestamp: p.Timestamp,
-				}
-				if trip.Province.Valid {
-					event.Province = trip.Province.String
-				}
-				if trip.City.Valid {
-					event.City = trip.City.String
-				}
-				if trip.County.Valid {
-					event.County = trip.County.String
+					Province:  p.Province,
+					City:      p.City,
+					County:    p.County,
 				}
 				extremes[key] = event
 				break
@@ -347,15 +333,9 @@ func (a *ExtremeEventsAnalyzer) calculateTripExtremes(extremes map[string]*Extre
 					Latitude:  p.Lat,
 					Longitude: p.Lon,
 					Timestamp: p.Timestamp,
-				}
-				if trip.Province.Valid {
-					event.Province = trip.Province.String
-				}
-				if trip.City.Valid {
-					event.City = trip.City.String
-				}
-				if trip.County.Valid {
-					event.County = trip.County.String
+					Province:  p.Province,
+					City:      p.City,
+					County:    p.County,
 				}
 				extremes[key] = event
 				break

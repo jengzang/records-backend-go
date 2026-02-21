@@ -13,26 +13,26 @@ type AnalysisTask struct {
 	// Status
 	Status          string `json:"status" db:"status"`                       // pending, running, completed, failed
 	ProgressPercent int    `json:"progress_percent" db:"progress_percent"`
-	ETASeconds      int    `json:"eta_seconds,omitempty" db:"eta_seconds"`
+	ETASeconds      *int   `json:"eta_seconds,omitempty" db:"eta_seconds"`
 
 	// Input parameters
-	ParamsJSON         string `json:"params_json,omitempty" db:"params_json"`
-	ThresholdProfileID int64  `json:"threshold_profile_id,omitempty" db:"threshold_profile_id"`
+	ParamsJSON         *string `json:"params_json,omitempty" db:"params_json"`
+	ThresholdProfileID *int64  `json:"threshold_profile_id,omitempty" db:"threshold_profile_id"`
 
 	// Execution info
-	TotalPoints     int   `json:"total_points,omitempty" db:"total_points"`
-	ProcessedPoints int   `json:"processed_points" db:"processed_points"`
-	FailedPoints    int   `json:"failed_points" db:"failed_points"`
-	StartTime       int64 `json:"start_time,omitempty" db:"start_time"`     // Unix timestamp
-	EndTime         int64 `json:"end_time,omitempty" db:"end_time"`         // Unix timestamp
+	TotalPoints     int    `json:"total_points,omitempty" db:"total_points"`
+	ProcessedPoints int    `json:"processed_points" db:"processed_points"`
+	FailedPoints    int    `json:"failed_points" db:"failed_points"`
+	StartTime       *int64 `json:"start_time,omitempty" db:"start_time"`     // Unix timestamp
+	EndTime         *int64 `json:"end_time,omitempty" db:"end_time"`         // Unix timestamp
 
 	// Results
-	ResultSummary string `json:"result_summary,omitempty" db:"result_summary"` // JSON object with summary statistics
-	ErrorMessage  string `json:"error_message,omitempty" db:"error_message"`
+	ResultSummary *string `json:"result_summary,omitempty" db:"result_summary"` // JSON object with summary statistics
+	ErrorMessage  *string `json:"error_message,omitempty" db:"error_message"`
 
 	// Dependencies
-	DependsOnTaskIDs string `json:"depends_on_task_ids,omitempty" db:"depends_on_task_ids"` // JSON array of task IDs
-	BlocksTaskIDs    string `json:"blocks_task_ids,omitempty" db:"blocks_task_ids"`         // JSON array of task IDs
+	DependsOnTaskIDs *string `json:"depends_on_task_ids,omitempty" db:"depends_on_task_ids"` // JSON array of task IDs
+	BlocksTaskIDs    *string `json:"blocks_task_ids,omitempty" db:"blocks_task_ids"`         // JSON array of task IDs
 
 	// Metadata
 	CreatedBy string    `json:"created_by,omitempty" db:"created_by"`

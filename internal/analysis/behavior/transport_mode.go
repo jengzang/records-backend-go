@@ -36,10 +36,22 @@ func (a *TransportModeAnalyzer) Analyze(ctx context.Context, taskID int64, mode 
 
 	// Clear existing segments (full recompute)
 	if mode == "full" {
+		// Delete dependent rows first to avoid foreign key constraint violations
+		// Order matters: delete child tables before parent tables
+		// Ignore errors for non-existent tables (they may not be created yet)
+		tablesToClear := []string{"speed_events", "render_segments_cache", "road_overlap_stats"}
+		for _, table := range tablesToClear {
+			if _, err := a.DB.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s", table)); err != nil {
+				// Log warning but continue if table doesn't exist
+				log.Printf("[TransportModeAnalyzer] Warning: failed to clear %s: %v (table may not exist yet)", table, err)
+			}
+		}
+
+		// Delete segments table (this one must succeed)
 		if _, err := a.DB.ExecContext(ctx, "DELETE FROM segments"); err != nil {
 			return fmt.Errorf("failed to clear segments: %w", err)
 		}
-		log.Printf("[TransportModeAnalyzer] Cleared existing segments")
+		log.Printf("[TransportModeAnalyzer] Cleared existing segments and dependent tables")
 	}
 
 	// Get all track points ordered by time

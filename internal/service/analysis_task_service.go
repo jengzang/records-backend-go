@@ -57,13 +57,14 @@ func (s *AnalysisTaskService) CreateTask(skillName string, taskType string, para
 	}
 
 	// Serialize params to JSON
-	paramsJSON := ""
+	var paramsJSON *string
 	if params != nil {
 		paramsBytes, err := json.Marshal(params)
 		if err != nil {
 			return nil, fmt.Errorf("failed to serialize params: %w", err)
 		}
-		paramsJSON = string(paramsBytes)
+		jsonStr := string(paramsBytes)
+		paramsJSON = &jsonStr
 	}
 
 	// Create task record
@@ -252,7 +253,7 @@ func isValidSkillName(skillName string) bool {
 		"stay_statistics":      true,
 		"extreme_events":       true,
 		"admin_crossings":      true,
-		"admin_view":           true,
+		"admin_view_engine":    true,
 		"time_space_slicing":   true,
 		"time_space_compression": true,
 		"altitude_dimension":   true,

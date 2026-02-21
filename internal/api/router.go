@@ -106,6 +106,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/footprint/rankings", statsHandler.GetFootprintRankings)
 			stats.GET("/stay/rankings", statsHandler.GetStayRankings)
 			stats.GET("/extreme-events", statsHandler.GetExtremeEvents)
+			stats.GET("/admin-crossings", statsHandler.GetAdminCrossings)
+			stats.GET("/admin-view", statsHandler.GetAdminView)
 		}
 
 		// 可视化接口

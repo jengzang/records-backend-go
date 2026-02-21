@@ -98,3 +98,24 @@ func (s *StatsService) GetStayRankings(filter models.StatsFilter) ([]models.Stay
 func (s *StatsService) GetExtremeEvents(eventType, eventCategory string, limit int) ([]models.ExtremeEvent, error) {
 	return s.statsRepo.GetExtremeEvents(eventType, eventCategory, limit)
 }
+
+// GetAdminCrossings retrieves administrative boundary crossing events
+func (s *StatsService) GetAdminCrossings(crossingType, fromRegion, toRegion string, startTime, endTime int64, limit int) ([]models.AdminCrossing, error) {
+	// Validate time range
+	if startTime < 0 {
+		startTime = 0
+	}
+	if endTime < 0 {
+		endTime = time.Now().Unix()
+	}
+	if startTime > 0 && endTime > 0 && startTime > endTime {
+		return nil, fmt.Errorf("start time must be before end time")
+	}
+
+	return s.statsRepo.GetAdminCrossings(crossingType, fromRegion, toRegion, startTime, endTime, limit)
+}
+
+// GetAdminStats retrieves administrative region statistics
+func (s *StatsService) GetAdminStats(adminLevel, adminName, parentName, sortBy string, limit int) ([]models.AdminStats, error) {
+	return s.statsRepo.GetAdminStats(adminLevel, adminName, parentName, sortBy, limit)
+}

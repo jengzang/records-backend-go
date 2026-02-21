@@ -157,3 +157,56 @@ type SpeedDistribution struct {
 	Count      int     `json:"count" db:"count"`
 	Percentage float64 `json:"percentage" db:"percentage"`
 }
+
+// AdminCrossing represents an administrative boundary crossing event
+type AdminCrossing struct {
+	ID                 int64     `json:"id" db:"id"`
+	CrossingTS         int64     `json:"crossing_ts" db:"crossing_ts"`
+	FromProvince       string    `json:"from_province,omitempty" db:"from_province"`
+	FromCity           string    `json:"from_city,omitempty" db:"from_city"`
+	FromCounty         string    `json:"from_county,omitempty" db:"from_county"`
+	FromTown           string    `json:"from_town,omitempty" db:"from_town"`
+	ToProvince         string    `json:"to_province,omitempty" db:"to_province"`
+	ToCity             string    `json:"to_city,omitempty" db:"to_city"`
+	ToCounty           string    `json:"to_county,omitempty" db:"to_county"`
+	ToTown             string    `json:"to_town,omitempty" db:"to_town"`
+	CrossingType       string    `json:"crossing_type" db:"crossing_type"` // PROVINCE/CITY/COUNTY/TOWN
+	Latitude           float64   `json:"latitude" db:"latitude"`
+	Longitude          float64   `json:"longitude" db:"longitude"`
+	DistanceFromPrevM  float64   `json:"distance_from_prev_m" db:"distance_from_prev_m"`
+	AlgoVersion        string    `json:"algo_version,omitempty" db:"algo_version"`
+	CreatedAt          time.Time `json:"created_at" db:"created_at"`
+}
+
+// AdminStats represents administrative region statistics
+type AdminStats struct {
+	ID              int64     `json:"id" db:"id"`
+	AdminLevel      string    `json:"admin_level" db:"admin_level"` // PROVINCE/CITY/COUNTY/TOWN
+	AdminName       string    `json:"admin_name" db:"admin_name"`
+	ParentName      string    `json:"parent_name,omitempty" db:"parent_name"`
+	VisitCount      int       `json:"visit_count" db:"visit_count"`
+	TotalDurationS  int64     `json:"total_duration_s" db:"total_duration_s"`
+	UniqueDays      int       `json:"unique_days" db:"unique_days"`
+	FirstVisitTS    int64     `json:"first_visit_ts,omitempty" db:"first_visit_ts"`
+	LastVisitTS     int64     `json:"last_visit_ts,omitempty" db:"last_visit_ts"`
+	TotalDistanceM  float64   `json:"total_distance_m" db:"total_distance_m"`
+	AlgoVersion     string    `json:"algo_version,omitempty" db:"algo_version"`
+	CreatedAt       time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// CrossingType constants
+const (
+	CrossingTypeProvince = "PROVINCE"
+	CrossingTypeCity     = "CITY"
+	CrossingTypeCounty   = "COUNTY"
+	CrossingTypeTown     = "TOWN"
+)
+
+// AdminLevel constants
+const (
+	AdminLevelProvince = "PROVINCE"
+	AdminLevelCity     = "CITY"
+	AdminLevelCounty   = "COUNTY"
+	AdminLevelTown     = "TOWN"
+)

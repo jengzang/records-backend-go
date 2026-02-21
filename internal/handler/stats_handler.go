@@ -197,3 +197,68 @@ func (h *StatsHandler) GetExtremeEvents(c *gin.Context) {
 		"count": len(events),
 	})
 }
+
+// GetAdminCrossings handles GET /api/v1/stats/admin-crossings
+func (h *StatsHandler) GetAdminCrossings(c *gin.Context) {
+	crossingType := c.Query("crossing_type")
+	fromRegion := c.Query("from")
+	toRegion := c.Query("to")
+	startTimeStr := c.DefaultQuery("start_time", "0")
+	endTimeStr := c.DefaultQuery("end_time", "0")
+	limitStr := c.DefaultQuery("limit", "100")
+
+	startTime, err := strconv.ParseInt(startTimeStr, 10, 64)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid start_time parameter", err)
+		return
+	}
+
+	endTime, err := strconv.ParseInt(endTimeStr, 10, 64)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid end_time parameter", err)
+		return
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid limit parameter", err)
+		return
+	}
+
+	crossings, err := h.statsService.GetAdminCrossings(crossingType, fromRegion, toRegion, startTime, endTime, limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get admin crossings", err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"data":  crossings,
+		"count": len(crossings),
+	})
+}
+
+// GetAdminView handles GET /api/v1/stats/admin-view
+func (h *StatsHandler) GetAdminView(c *gin.Context) {
+	adminLevel := c.Query("admin_level")
+	adminName := c.Query("admin_name")
+	parentName := c.Query("parent_name")
+	sortBy := c.DefaultQuery("sort_by", "visit_count")
+	limitStr := c.DefaultQuery("limit", "50")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid limit parameter", err)
+		return
+	}
+
+	stats, err := h.statsService.GetAdminStats(adminLevel, adminName, parentName, sortBy, limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get admin stats", err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"data":  stats,
+		"count": len(stats),
+	})
+}
