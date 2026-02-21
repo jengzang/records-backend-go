@@ -385,6 +385,127 @@ PUT /api/v1/tracks/points/{id}
 }
 ```
 
+## Visualization Endpoints
+
+### 11. Get Heatmap Data
+
+```
+GET /api/v1/viz/heatmap
+```
+
+**Description:** Get heatmap data with normalized intensity scores for visualization.
+
+**Query Parameters:**
+- `level` (integer) - Grid level (1-15, default: 3)
+  - Level 1: Province level (~100km cells)
+  - Level 2: City level (~50km cells)
+  - Level 3: District level (~10km cells)
+  - Level 4: Town level (~5km cells)
+  - Level 5: Road level (~1km cells)
+- `metric` (string) - Metric to visualize (default: 'point_count')
+  - `point_count` - Number of GPS points in each cell
+  - `duration` - Total duration in seconds
+  - `visit_count` - Number of distinct visits
+- `minLat` (float) - Minimum latitude for bounding box
+- `maxLat` (float) - Maximum latitude for bounding box
+- `minLon` (float) - Minimum longitude for bounding box
+- `maxLon` (float) - Maximum longitude for bounding box
+
+**Response:**
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "points": [
+      {
+        "lat": 22.5432,
+        "lng": 113.9234,
+        "intensity": 0.85,
+        "value": 1250,
+        "metric": "point_count"
+      },
+      {
+        "lat": 22.5567,
+        "lng": 113.9456,
+        "intensity": 0.42,
+        "value": 620,
+        "metric": "point_count"
+      }
+    ],
+    "count": 150,
+    "max_value": 1500,
+    "min_value": 10,
+    "metric": "point_count",
+    "grid_level": 3
+  }
+}
+```
+
+**Notes:**
+- Intensity values are normalized to [0, 1] range for easy visualization
+- Maximum 10,000 cells per request for performance
+- Empty result if no grid data exists (run grid_system analyzer first)
+
+**Example Usage:**
+```bash
+# Basic heatmap (point density)
+curl "http://localhost:8080/api/v1/viz/heatmap?level=3&minLat=22.0&maxLat=23.5&minLon=113.0&maxLon=114.5"
+
+# Duration-based heatmap
+curl "http://localhost:8080/api/v1/viz/heatmap?level=3&metric=duration&minLat=22.0&maxLat=23.5&minLon=113.0&maxLon=114.5"
+
+# Visit count heatmap
+curl "http://localhost:8080/api/v1/viz/heatmap?level=3&metric=visit_count&minLat=22.0&maxLat=23.5&minLon=113.0&maxLon=114.5"
+```
+
+### 12. Get Grid Cells
+
+```
+GET /api/v1/viz/grid-cells
+```
+
+**Description:** Get raw grid cell data with detailed statistics.
+
+**Query Parameters:**
+- `level` (integer) - Grid level (1-15, default: 3)
+- `minLat` (float) - Minimum latitude for bounding box
+- `maxLat` (float) - Maximum latitude for bounding box
+- `minLon` (float) - Minimum longitude for bounding box
+- `maxLon` (float) - Maximum longitude for bounding box
+- `minDensity` (integer) - Minimum point count filter
+
+**Response:**
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "data": [
+      {
+        "grid_id": "L3_1234_5678",
+        "level": 3,
+        "center_lat": 22.5432,
+        "center_lon": 113.9234,
+        "min_lat": 22.5400,
+        "max_lat": 22.5464,
+        "min_lon": 113.9200,
+        "max_lon": 113.9268,
+        "point_count": 1250,
+        "visit_count": 45,
+        "total_duration_seconds": 86400,
+        "first_visit": 1704067200,
+        "last_visit": 1737552138,
+        "modes_json": "[\"walk\",\"bike\",\"car\"]",
+        "created_at": "2026-02-22T00:00:00Z",
+        "updated_at": "2026-02-22T00:00:00Z"
+      }
+    ],
+    "count": 150
+  }
+}
+```
+
 ## Error Responses
 
 ### 400 Bad Request

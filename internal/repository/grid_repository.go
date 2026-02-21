@@ -21,11 +21,11 @@ func NewGridRepository(db *sql.DB) *GridRepository {
 // GetGridCells retrieves grid cells with filtering
 func (r *GridRepository) GetGridCells(filter models.GridFilter) ([]models.GridCell, error) {
 	// Build query
-	query := `SELECT id, grid_id, level, center_lat, center_lon,
-		min_lat, max_lat, min_lon, max_lon,
+	query := `SELECT grid_id, level, center_lat, center_lon,
+		bbox_min_lat, bbox_max_lat, bbox_min_lon, bbox_max_lon,
 		point_count, visit_count, first_visit, last_visit,
-		total_duration_seconds, modes_json,
-		algo_version, created_at, updated_at
+		total_duration_s, modes,
+		created_at, updated_at
 		FROM grid_cells`
 
 	var conditions []string
@@ -81,11 +81,11 @@ func (r *GridRepository) GetGridCells(filter models.GridFilter) ([]models.GridCe
 	for rows.Next() {
 		var c models.GridCell
 		err := rows.Scan(
-			&c.ID, &c.GridID, &c.Level, &c.CenterLat, &c.CenterLon,
+			&c.GridID, &c.Level, &c.CenterLat, &c.CenterLon,
 			&c.MinLat, &c.MaxLat, &c.MinLon, &c.MaxLon,
 			&c.PointCount, &c.VisitCount, &c.FirstVisit, &c.LastVisit,
 			&c.TotalDurationSeconds, &c.ModesJSON,
-			&c.AlgoVersion, &c.CreatedAt, &c.UpdatedAt,
+			&c.CreatedAt, &c.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan grid cell: %w", err)
@@ -96,22 +96,26 @@ func (r *GridRepository) GetGridCells(filter models.GridFilter) ([]models.GridCe
 	return cells, nil
 }
 
-// GetGridCellByID retrieves a single grid cell by ID
+// GetGridCellByID retrieves a single grid cell by grid_id
 func (r *GridRepository) GetGridCellByID(id int64) (*models.GridCell, error) {
-	query := `SELECT id, grid_id, level, center_lat, center_lon,
-		min_lat, max_lat, min_lon, max_lon,
+	// Note: This method signature uses int64 for compatibility, but grid_id is actually TEXT
+	// Convert int64 to string for the query
+	gridID := fmt.Sprintf("%d", id)
+
+	query := `SELECT grid_id, level, center_lat, center_lon,
+		bbox_min_lat, bbox_max_lat, bbox_min_lon, bbox_max_lon,
 		point_count, visit_count, first_visit, last_visit,
-		total_duration_seconds, modes_json,
-		algo_version, created_at, updated_at
-		FROM grid_cells WHERE id = ?`
+		total_duration_s, modes,
+		created_at, updated_at
+		FROM grid_cells WHERE grid_id = ?`
 
 	var c models.GridCell
-	err := r.db.QueryRow(query, id).Scan(
-		&c.ID, &c.GridID, &c.Level, &c.CenterLat, &c.CenterLon,
+	err := r.db.QueryRow(query, gridID).Scan(
+		&c.GridID, &c.Level, &c.CenterLat, &c.CenterLon,
 		&c.MinLat, &c.MaxLat, &c.MinLon, &c.MaxLon,
 		&c.PointCount, &c.VisitCount, &c.FirstVisit, &c.LastVisit,
 		&c.TotalDurationSeconds, &c.ModesJSON,
-		&c.AlgoVersion, &c.CreatedAt, &c.UpdatedAt,
+		&c.CreatedAt, &c.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil

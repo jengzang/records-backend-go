@@ -43,3 +43,33 @@ func (h *GridHandler) GetGridCells(c *gin.Context) {
 		"count": len(cells),
 	})
 }
+
+// GetHeatmapData handles GET /api/v1/viz/heatmap
+func (h *GridHandler) GetHeatmapData(c *gin.Context) {
+	var filter models.GridFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid query parameters", err)
+		return
+	}
+
+	// Default to level 3 (district level) if not specified
+	if filter.Level == 0 {
+		filter.Level = 3
+	}
+
+	// Get metric parameter
+	metric := c.DefaultQuery("metric", "point_count")
+	if metric != "point_count" && metric != "duration" && metric != "visit_count" {
+		response.Error(c, http.StatusBadRequest, "Invalid metric. Must be one of: point_count, duration, visit_count", nil)
+		return
+	}
+
+	// Get heatmap data
+	heatmap, err := h.service.GetHeatmapData(filter, metric)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get heatmap data", err)
+		return
+	}
+
+	response.Success(c, heatmap)
+}

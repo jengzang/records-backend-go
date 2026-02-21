@@ -114,6 +114,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		viz := api.Group("/viz")
 		{
 			viz.GET("/grid-cells", gridHandler.GetGridCells)
+			viz.GET("/heatmap", gridHandler.GetHeatmapData)
 			viz.GET("/rendering", vizHandler.GetRenderingMetadata)
 			viz.GET("/time-slices", vizHandler.GetTimeSliceData)
 		}
