@@ -290,3 +290,21 @@ func (s *StatsService) GetBurstPeriods(
 ) ([]models.TimeSpaceCompression, error) {
 	return s.statsRepo.GetBurstPeriods(bucketType, limit)
 }
+
+// GetTimeSpaceSlices retrieves time-space slices with filters
+func (s *StatsService) GetTimeSpaceSlices(
+	sliceType string,
+	limit int,
+) ([]models.TimeSpaceSlice, error) {
+	return s.statsRepo.GetTimeSpaceSlices(sliceType, limit)
+}
+
+// GetWeeklyPattern retrieves weekly-hourly pattern
+func (s *StatsService) GetWeeklyPattern() ([]models.TimeSpaceSlice, error) {
+	return s.statsRepo.GetWeeklyPattern()
+}
+
+// GetHourlyPattern retrieves hourly pattern
+func (s *StatsService) GetHourlyPattern() ([]models.TimeSpaceSlice, error) {
+	return s.statsRepo.GetHourlyPattern()
+}

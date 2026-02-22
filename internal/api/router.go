@@ -146,6 +146,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/time-space-compression", statsHandler.GetTimeSpaceCompression)
 			stats.GET("/time-space-compression/highest-intensity", statsHandler.GetHighestMovementIntensity)
 			stats.GET("/time-space-compression/burst-periods", statsHandler.GetBurstPeriods)
+
+			// Time-space slicing endpoints
+			stats.GET("/time-space-slices", statsHandler.GetTimeSpaceSlices)
+			stats.GET("/time-space-slices/weekly-pattern", statsHandler.GetWeeklyPattern)
+			stats.GET("/time-space-slices/hourly-pattern", statsHandler.GetHourlyPattern)
 		}
 
 		// 可视化接口

@@ -1799,3 +1799,76 @@ func (r *StatsRepository) GetBurstPeriods(
 
 	return results, nil
 }
+
+// GetTimeSpaceSlices retrieves time-space slices with filters
+func (r *StatsRepository) GetTimeSpaceSlices(
+	sliceType string,
+	limit int,
+) ([]models.TimeSpaceSlice, error) {
+	query := `
+		SELECT id, slice_type, slice_key, admin_level, admin_name, grid_id,
+		       point_count, distance_m, duration_s, unique_locations,
+		       algo_version, created_at
+		FROM time_space_slices
+		WHERE 1=1
+	`
+	args := []interface{}{}
+
+	if sliceType != "" {
+		query += " AND slice_type = ?"
+		args = append(args, sliceType)
+	}
+
+	query += " ORDER BY slice_key LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query time-space slices: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.TimeSpaceSlice
+	for rows.Next() {
+		var slice models.TimeSpaceSlice
+		var adminLevel, adminName, gridID sql.NullString
+
+		err := rows.Scan(
+			&slice.ID, &slice.SliceType, &slice.SliceKey,
+			&adminLevel, &adminName, &gridID,
+			&slice.PointCount, &slice.DistanceM, &slice.DurationS, &slice.UniqueLocations,
+			&slice.AlgoVersion, &slice.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan time-space slice: %w", err)
+		}
+
+		if adminLevel.Valid {
+			slice.AdminLevel = adminLevel.String
+		}
+		if adminName.Valid {
+			slice.AdminName = adminName.String
+		}
+		if gridID.Valid {
+			slice.GridID = gridID.String
+		}
+
+		results = append(results, slice)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return results, nil
+}
+
+// GetWeeklyPattern retrieves weekly-hourly pattern (168 slices)
+func (r *StatsRepository) GetWeeklyPattern() ([]models.TimeSpaceSlice, error) {
+	return r.GetTimeSpaceSlices("WEEKLY_HOURLY", 168)
+}
+
+// GetHourlyPattern retrieves hourly pattern (24 slices)
+func (r *StatsRepository) GetHourlyPattern() ([]models.TimeSpaceSlice, error) {
+	return r.GetTimeSpaceSlices("HOURLY", 24)
+}

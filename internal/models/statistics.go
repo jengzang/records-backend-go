@@ -376,3 +376,19 @@ type TimeSpaceCompression struct {
 	CreatedAt              int64   `json:"created_at" db:"created_at"`
 	UpdatedAt              int64   `json:"updated_at" db:"updated_at"`
 }
+
+// TimeSpaceSlice represents a time-space slice for spatiotemporal analysis
+type TimeSpaceSlice struct {
+	ID               int64  `json:"id" db:"id"`
+	SliceType        string `json:"slice_type" db:"slice_type"`             // HOURLY, DAILY, WEEKLY_HOURLY
+	SliceKey         string `json:"slice_key" db:"slice_key"`               // e.g., "00", "2024-01-01", "0-00"
+	AdminLevel       string `json:"admin_level,omitempty" db:"admin_level"` // PROVINCE, CITY, COUNTY
+	AdminName        string `json:"admin_name,omitempty" db:"admin_name"`
+	GridID           string `json:"grid_id,omitempty" db:"grid_id"`
+	PointCount       int64  `json:"point_count" db:"point_count"`
+	DistanceM        float64 `json:"distance_m" db:"distance_m"`
+	DurationS        int64  `json:"duration_s" db:"duration_s"`
+	UniqueLocations  int64  `json:"unique_locations" db:"unique_locations"`
+	AlgoVersion      string `json:"algo_version" db:"algo_version"`
+	CreatedAt        string `json:"created_at" db:"created_at"`
+}

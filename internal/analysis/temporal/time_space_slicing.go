@@ -43,7 +43,7 @@ func (a *TimeSpaceSlicingAnalyzer) Analyze(ctx context.Context, taskID int64, mo
 
 	var allSlices []TimeSpaceSlice
 
-	// 1. Hourly slices
+	// 1. Hourly slices (24 slices)
 	hourlySlices, err := a.computeHourlySlices(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to compute hourly slices: %w", err)
@@ -57,6 +57,13 @@ func (a *TimeSpaceSlicingAnalyzer) Analyze(ctx context.Context, taskID int64, mo
 	}
 	allSlices = append(allSlices, dailySlices...)
 
+	// 3. Weekly-hourly slices (168 slices = 7 days × 24 hours)
+	weeklyHourlySlices, err := a.computeWeeklyHourlySlices(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to compute weekly-hourly slices: %w", err)
+	}
+	allSlices = append(allSlices, weeklyHourlySlices...)
+
 	log.Printf("[TimeSpaceSlicingAnalyzer] Generated %d slices", len(allSlices))
 
 	// Insert slices
@@ -66,9 +73,10 @@ func (a *TimeSpaceSlicingAnalyzer) Analyze(ctx context.Context, taskID int64, mo
 
 	// Mark task as completed
 	summary := map[string]interface{}{
-		"total_slices":  len(allSlices),
-		"hourly_slices": len(hourlySlices),
-		"daily_slices":  len(dailySlices),
+		"total_slices":         len(allSlices),
+		"hourly_slices":        len(hourlySlices),
+		"daily_slices":         len(dailySlices),
+		"weekly_hourly_slices": len(weeklyHourlySlices),
 	}
 	summaryJSON, _ := json.Marshal(summary)
 
@@ -129,6 +137,55 @@ func (a *TimeSpaceSlicingAnalyzer) computeHourlySlices(ctx context.Context) ([]T
 
 		slice.SliceType = "HOURLY"
 		slice.SliceKey = fmt.Sprintf("%02d", hour)
+		slice.Duration = slice.PointCount * 10 // Approximate
+
+		slices = append(slices, slice)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return slices, nil
+}
+
+// computeWeeklyHourlySlices computes weekly-hourly time slices (168 slices = 7 days × 24 hours)
+func (a *TimeSpaceSlicingAnalyzer) computeWeeklyHourlySlices(ctx context.Context) ([]TimeSpaceSlice, error) {
+	query := `
+		SELECT
+			CAST(strftime('%w', datetime(dataTime, 'unixepoch')) AS INTEGER) as day_of_week,
+			CAST(strftime('%H', datetime(dataTime, 'unixepoch')) AS INTEGER) as hour,
+			COUNT(*) as point_count,
+			SUM(CASE WHEN distance IS NOT NULL THEN distance ELSE 0 END) as total_distance,
+			COUNT(DISTINCT grid_id) as unique_locations
+		FROM "一生足迹"
+		WHERE outlier_flag = 0
+		GROUP BY day_of_week, hour
+		ORDER BY day_of_week, hour
+	`
+
+	rows, err := a.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query weekly-hourly slices: %w", err)
+	}
+	defer rows.Close()
+
+	var slices []TimeSpaceSlice
+	for rows.Next() {
+		var slice TimeSpaceSlice
+		var dayOfWeek, hour int
+		var distance sql.NullFloat64
+
+		if err := rows.Scan(&dayOfWeek, &hour, &slice.PointCount, &distance, &slice.UniqueLocations); err != nil {
+			return nil, fmt.Errorf("failed to scan weekly-hourly slice: %w", err)
+		}
+
+		if distance.Valid {
+			slice.Distance = distance.Float64
+		}
+
+		slice.SliceType = "WEEKLY_HOURLY"
+		slice.SliceKey = fmt.Sprintf("%d-%02d", dayOfWeek, hour) // e.g., "0-00" for Sunday 00:00
 		slice.Duration = slice.PointCount * 10 // Approximate
 
 		slices = append(slices, slice)

@@ -683,3 +683,39 @@ func (h *StatsHandler) GetBurstPeriods(c *gin.Context) {
 
 	response.Success(c, results)
 }
+
+// GetTimeSpaceSlices handles GET /api/v1/stats/time-space-slices
+func (h *StatsHandler) GetTimeSpaceSlices(c *gin.Context) {
+	sliceType := c.Query("slice_type")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+
+	results, err := h.statsService.GetTimeSpaceSlices(sliceType, limit)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get time-space slices", err)
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetWeeklyPattern handles GET /api/v1/stats/time-space-slices/weekly-pattern
+func (h *StatsHandler) GetWeeklyPattern(c *gin.Context) {
+	results, err := h.statsService.GetWeeklyPattern()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get weekly pattern", err)
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetHourlyPattern handles GET /api/v1/stats/time-space-slices/hourly-pattern
+func (h *StatsHandler) GetHourlyPattern(c *gin.Context) {
+	results, err := h.statsService.GetHourlyPattern()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get hourly pattern", err)
+		return
+	}
+
+	response.Success(c, results)
+}
