@@ -211,6 +211,32 @@ const (
 	AdminLevelTown     = "TOWN"
 )
 
+// RevisitPattern represents repeated visit patterns to locations
+type RevisitPattern struct {
+	ID                   int64   `json:"id" db:"id"`
+	Geohash6             string  `json:"geohash6" db:"geohash6"`
+	CenterLat            float64 `json:"center_lat" db:"center_lat"`
+	CenterLon            float64 `json:"center_lon" db:"center_lon"`
+	Province             string  `json:"province,omitempty" db:"province"`
+	City                 string  `json:"city,omitempty" db:"city"`
+	County               string  `json:"county,omitempty" db:"county"`
+	VisitCount           int     `json:"visit_count" db:"visit_count"`
+	FirstVisit           int64   `json:"first_visit" db:"first_visit"`
+	LastVisit            int64   `json:"last_visit" db:"last_visit"`
+	TotalDurationSeconds int64   `json:"total_duration_seconds" db:"total_duration_seconds"`
+	AvgIntervalDays      float64 `json:"avg_interval_days" db:"avg_interval_days"`
+	StdIntervalDays      float64 `json:"std_interval_days" db:"std_interval_days"`
+	MinIntervalDays      float64 `json:"min_interval_days" db:"min_interval_days"`
+	MaxIntervalDays      float64 `json:"max_interval_days" db:"max_interval_days"`
+	RegularityScore      float64 `json:"regularity_score" db:"regularity_score"`
+	IsPeriodic           bool    `json:"is_periodic" db:"is_periodic"`
+	IsHabitual           bool    `json:"is_habitual" db:"is_habitual"`
+	RevisitStrength      float64 `json:"revisit_strength" db:"revisit_strength"`
+	AlgoVersion          string  `json:"algo_version" db:"algo_version"`
+	CreatedAt            int64   `json:"created_at" db:"created_at"`
+	UpdatedAt            int64   `json:"updated_at" db:"updated_at"`
+}
+
 // SpeedSpaceStats represents speed-space coupling statistics
 type SpeedSpaceStats struct {
 	ID             int64   `json:"id" db:"id"`

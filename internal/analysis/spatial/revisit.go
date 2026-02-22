@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/jengzang/records-backend-go/internal/analysis"
 	"github.com/jengzang/records-backend-go/internal/stats"
@@ -13,6 +14,28 @@ import (
 // RevisitAnalyzer implements the Revisit Patterns analysis skill
 type RevisitAnalyzer struct {
 	*analysis.IncrementalAnalyzer
+}
+
+// RevisitLocation represents a location with revisit statistics
+type RevisitLocation struct {
+	Geohash         string
+	Lat             float64
+	Lon             float64
+	Province        string
+	City            string
+	County          string
+	VisitCount      int
+	FirstVisit      int64
+	LastVisit       int64
+	TotalDuration   int
+	AvgInterval     float64
+	StdInterval     float64
+	MinInterval     float64
+	MaxInterval     float64
+	RegularityScore float64
+	IsPeriodic      bool
+	IsHabitual      bool
+	RevisitStrength float64
 }
 
 // NewRevisitAnalyzer creates a new revisit patterns analyzer
@@ -40,7 +63,7 @@ func (a *RevisitAnalyzer) Analyze(ctx context.Context, taskID int64, mode string
 			COUNT(*) as visit_count,
 			MIN(start_time) as first_visit,
 			MAX(end_time) as last_visit,
-			SUM(duration_seconds) as total_duration
+			SUM(duration_s) as total_duration
 		FROM stay_segments
 		WHERE geohash6 IS NOT NULL AND geohash6 != ''
 		GROUP BY geohash6
@@ -55,21 +78,6 @@ func (a *RevisitAnalyzer) Analyze(ctx context.Context, taskID int64, mode string
 	}
 	defer rows.Close()
 
-	// Process results
-	type RevisitLocation struct {
-		Geohash        string
-		Lat            float64
-		Lon            float64
-		VisitCount     int
-		FirstVisit     int64
-		LastVisit      int64
-		TotalDuration  int
-		AvgInterval    float64
-		StdInterval    float64
-		RegularityScore float64
-		IsHabitual     bool
-	}
-
 	locations := []RevisitLocation{}
 	processed := 0
 
@@ -82,8 +90,21 @@ func (a *RevisitAnalyzer) Analyze(ctx context.Context, taskID int64, mode string
 			continue
 		}
 
+		// Get admin info from first stay in this location
+		adminQuery := `
+			SELECT province, city, county
+			FROM stay_segments
+			WHERE geohash6 = ?
+			LIMIT 1
+		`
+		err = a.DB.QueryRow(adminQuery, loc.Geohash).Scan(&loc.Province, &loc.City, &loc.County)
+		if err != nil {
+			// Admin info is optional, just log and continue
+			log.Printf("Failed to get admin info for %s: %v", loc.Geohash, err)
+		}
+
 		// Calculate revisit intervals
-		intervals, err := a.getIntervals(loc.Geohash)
+		intervals, minInterval, maxInterval, err := a.getIntervals(loc.Geohash)
 		if err != nil {
 			log.Printf("Failed to get intervals for %s: %v", loc.Geohash, err)
 			continue
@@ -92,6 +113,8 @@ func (a *RevisitAnalyzer) Analyze(ctx context.Context, taskID int64, mode string
 		if len(intervals) > 0 {
 			loc.AvgInterval = stats.Mean(intervals)
 			loc.StdInterval = stats.StdDev(intervals)
+			loc.MinInterval = minInterval
+			loc.MaxInterval = maxInterval
 
 			// Calculate regularity score (0-1, higher = more regular)
 			if loc.AvgInterval > 0 {
@@ -99,9 +122,15 @@ func (a *RevisitAnalyzer) Analyze(ctx context.Context, taskID int64, mode string
 				loc.RegularityScore = 1.0 / (1.0 + cv)
 			}
 
+			// Mark as periodic if highly regular (low coefficient of variation)
+			loc.IsPeriodic = loc.RegularityScore > 0.8 && loc.VisitCount >= 3
+
 			// Mark as habitual if visited frequently and regularly
 			loc.IsHabitual = loc.VisitCount >= 5 && loc.RegularityScore > 0.7
 		}
+
+		// Calculate revisit strength: log(1 + visits) × log(1 + duration)
+		loc.RevisitStrength = math.Log(1+float64(loc.VisitCount)) * math.Log(1+float64(loc.TotalDuration))
 
 		locations = append(locations, loc)
 		processed++
@@ -141,7 +170,7 @@ func (a *RevisitAnalyzer) Analyze(ctx context.Context, taskID int64, mode string
 }
 
 // getIntervals calculates the time intervals between visits to a location
-func (a *RevisitAnalyzer) getIntervals(geohash string) ([]float64, error) {
+func (a *RevisitAnalyzer) getIntervals(geohash string) ([]float64, float64, float64, error) {
 	query := `
 		SELECT start_time
 		FROM stay_segments
@@ -151,7 +180,7 @@ func (a *RevisitAnalyzer) getIntervals(geohash string) ([]float64, error) {
 
 	rows, err := a.DB.Query(query, geohash)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	defer rows.Close()
 
@@ -159,23 +188,34 @@ func (a *RevisitAnalyzer) getIntervals(geohash string) ([]float64, error) {
 	for rows.Next() {
 		var t int64
 		if err := rows.Scan(&t); err != nil {
-			return nil, err
+			return nil, 0, 0, err
 		}
 		times = append(times, t)
 	}
 
 	if len(times) < 2 {
-		return nil, nil
+		return nil, 0, 0, nil
 	}
 
 	// Calculate intervals in days
 	intervals := make([]float64, len(times)-1)
+	minInterval := math.MaxFloat64
+	maxInterval := 0.0
+
 	for i := 1; i < len(times); i++ {
 		intervalSeconds := times[i] - times[i-1]
-		intervals[i-1] = float64(intervalSeconds) / 86400.0 // Convert to days
+		intervalDays := float64(intervalSeconds) / 86400.0
+		intervals[i-1] = intervalDays
+
+		if intervalDays < minInterval {
+			minInterval = intervalDays
+		}
+		if intervalDays > maxInterval {
+			maxInterval = intervalDays
+		}
 	}
 
-	return intervals, nil
+	return intervals, minInterval, maxInterval, nil
 }
 
 // insertResults inserts the analysis results into the database
@@ -189,11 +229,13 @@ func (a *RevisitAnalyzer) insertResults(locations []interface{}) error {
 	// Prepare insert statement
 	stmt, err := a.DB.Prepare(`
 		INSERT INTO revisit_patterns (
-			geohash6, center_lat, center_lon, visit_count,
-			first_visit, last_visit, total_duration_seconds,
-			avg_interval_days, std_interval_days, regularity_score,
-			is_habitual, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+			geohash6, center_lat, center_lon,
+			province, city, county,
+			visit_count, first_visit, last_visit, total_duration_seconds,
+			avg_interval_days, std_interval_days, min_interval_days, max_interval_days,
+			regularity_score, is_periodic, is_habitual, revisit_strength,
+			algo_version
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1')
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
@@ -201,14 +243,31 @@ func (a *RevisitAnalyzer) insertResults(locations []interface{}) error {
 	defer stmt.Close()
 
 	// Insert each location
-	for _, loc := range locations {
-		// Type assertion (this is a simplified version)
-		// In production, you'd use proper type handling
+	for _, locInterface := range locations {
+		loc, ok := locInterface.(RevisitLocation)
+		if !ok {
+			log.Printf("Failed to cast location to RevisitLocation")
+			continue
+		}
+
+		isPeriodic := 0
+		if loc.IsPeriodic {
+			isPeriodic = 1
+		}
+		isHabitual := 0
+		if loc.IsHabitual {
+			isHabitual = 1
+		}
+
 		_, err := stmt.Exec(
-			loc, // This needs proper field extraction
+			loc.Geohash, loc.Lat, loc.Lon,
+			loc.Province, loc.City, loc.County,
+			loc.VisitCount, loc.FirstVisit, loc.LastVisit, loc.TotalDuration,
+			loc.AvgInterval, loc.StdInterval, loc.MinInterval, loc.MaxInterval,
+			loc.RegularityScore, isPeriodic, isHabitual, loc.RevisitStrength,
 		)
 		if err != nil {
-			log.Printf("Failed to insert location: %v", err)
+			log.Printf("Failed to insert location %s: %v", loc.Geohash, err)
 			continue
 		}
 	}
@@ -219,4 +278,30 @@ func (a *RevisitAnalyzer) insertResults(locations []interface{}) error {
 // Register the analyzer
 func init() {
 	analysis.RegisterAnalyzer("revisit_pattern", NewRevisitAnalyzer)
+}
+
+// calculateIntervals calculates intervals between visit times
+func calculateIntervals(times []int64) ([]float64, float64, float64) {
+	if len(times) < 2 {
+		return nil, 0, 0
+	}
+
+	intervals := make([]float64, len(times)-1)
+	minInterval := math.MaxFloat64
+	maxInterval := 0.0
+
+	for i := 1; i < len(times); i++ {
+		intervalSeconds := times[i] - times[i-1]
+		intervalDays := float64(intervalSeconds) / 86400.0
+		intervals[i-1] = intervalDays
+
+		if intervalDays < minInterval {
+			minInterval = intervalDays
+		}
+		if intervalDays > maxInterval {
+			maxInterval = intervalDays
+		}
+	}
+
+	return intervals, minInterval, maxInterval
 }

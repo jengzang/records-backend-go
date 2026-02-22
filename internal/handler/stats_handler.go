@@ -389,3 +389,91 @@ func (h *StatsHandler) GetBidirectionalPatterns(c *gin.Context) {
 
 	response.Success(c, stats)
 }
+
+// GetRevisitPatterns handles GET /api/v1/stats/revisit-patterns
+func (h *StatsHandler) GetRevisitPatterns(c *gin.Context) {
+	minVisitsStr := c.DefaultQuery("min_visits", "2")
+	habitualOnlyStr := c.DefaultQuery("habitual_only", "false")
+	periodicOnlyStr := c.DefaultQuery("periodic_only", "false")
+	limitStr := c.DefaultQuery("limit", "50")
+
+	minVisits, err := strconv.Atoi(minVisitsStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid min_visits parameter")
+		return
+	}
+
+	habitualOnly := habitualOnlyStr == "true"
+	periodicOnly := periodicOnlyStr == "true"
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	patterns, err := h.statsService.GetRevisitPatterns(minVisits, habitualOnly, periodicOnly, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, patterns)
+}
+
+// GetTopRevisitLocations handles GET /api/v1/stats/revisit-patterns/top-locations
+func (h *StatsHandler) GetTopRevisitLocations(c *gin.Context) {
+	limitStr := c.DefaultQuery("limit", "20")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	patterns, err := h.statsService.GetTopRevisitLocations(limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, patterns)
+}
+
+// GetHabitualLocations handles GET /api/v1/stats/revisit-patterns/habitual
+func (h *StatsHandler) GetHabitualLocations(c *gin.Context) {
+	limitStr := c.DefaultQuery("limit", "20")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	patterns, err := h.statsService.GetHabitualLocations(limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, patterns)
+}
+
+// GetPeriodicLocations handles GET /api/v1/stats/revisit-patterns/periodic
+func (h *StatsHandler) GetPeriodicLocations(c *gin.Context) {
+	limitStr := c.DefaultQuery("limit", "20")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	patterns, err := h.statsService.GetPeriodicLocations(limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, patterns)
+}

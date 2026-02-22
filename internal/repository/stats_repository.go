@@ -860,3 +860,79 @@ func (r *StatsRepository) GetBidirectionalPatterns(
 
 	return stats, nil
 }
+
+// GetRevisitPatterns retrieves revisit patterns with filters
+func (r *StatsRepository) GetRevisitPatterns(
+	minVisits int,
+	habitualOnly bool,
+	periodicOnly bool,
+	limit int,
+) ([]models.RevisitPattern, error) {
+	query := `
+		SELECT
+			id, geohash6, center_lat, center_lon,
+			province, city, county,
+			visit_count, first_visit, last_visit, total_duration_seconds,
+			avg_interval_days, std_interval_days, min_interval_days, max_interval_days,
+			regularity_score, is_periodic, is_habitual, revisit_strength,
+			algo_version, created_at, updated_at
+		FROM revisit_patterns
+		WHERE visit_count >= ?
+	`
+
+	var args []interface{}
+	args = append(args, minVisits)
+
+	if habitualOnly {
+		query += " AND is_habitual = 1"
+	}
+	if periodicOnly {
+		query += " AND is_periodic = 1"
+	}
+
+	query += " ORDER BY revisit_strength DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query revisit patterns: %w", err)
+	}
+	defer rows.Close()
+
+	var patterns []models.RevisitPattern
+	for rows.Next() {
+		var p models.RevisitPattern
+		var isPeriodic, isHabitual int
+		err := rows.Scan(
+			&p.ID, &p.Geohash6, &p.CenterLat, &p.CenterLon,
+			&p.Province, &p.City, &p.County,
+			&p.VisitCount, &p.FirstVisit, &p.LastVisit, &p.TotalDurationSeconds,
+			&p.AvgIntervalDays, &p.StdIntervalDays, &p.MinIntervalDays, &p.MaxIntervalDays,
+			&p.RegularityScore, &isPeriodic, &isHabitual, &p.RevisitStrength,
+			&p.AlgoVersion, &p.CreatedAt, &p.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan revisit pattern: %w", err)
+		}
+		p.IsPeriodic = isPeriodic == 1
+		p.IsHabitual = isHabitual == 1
+		patterns = append(patterns, p)
+	}
+
+	return patterns, nil
+}
+
+// GetTopRevisitLocations retrieves locations with highest revisit strength
+func (r *StatsRepository) GetTopRevisitLocations(limit int) ([]models.RevisitPattern, error) {
+	return r.GetRevisitPatterns(2, false, false, limit)
+}
+
+// GetHabitualLocations retrieves habitual locations (≥5 visits + high regularity)
+func (r *StatsRepository) GetHabitualLocations(limit int) ([]models.RevisitPattern, error) {
+	return r.GetRevisitPatterns(5, true, false, limit)
+}
+
+// GetPeriodicLocations retrieves locations with periodic visit patterns
+func (r *StatsRepository) GetPeriodicLocations(limit int) ([]models.RevisitPattern, error) {
+	return r.GetRevisitPatterns(3, false, true, limit)
+}

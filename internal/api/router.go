@@ -118,6 +118,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/directional-bias", statsHandler.GetDirectionalBiasStats)
 			stats.GET("/directional-bias/top-areas", statsHandler.GetTopDirectionalAreas)
 			stats.GET("/directional-bias/bidirectional", statsHandler.GetBidirectionalPatterns)
+
+			// Revisit patterns endpoints
+			stats.GET("/revisit-patterns", statsHandler.GetRevisitPatterns)
+			stats.GET("/revisit-patterns/top-locations", statsHandler.GetTopRevisitLocations)
+			stats.GET("/revisit-patterns/habitual", statsHandler.GetHabitualLocations)
+			stats.GET("/revisit-patterns/periodic", statsHandler.GetPeriodicLocations)
 		}
 
 		// 可视化接口

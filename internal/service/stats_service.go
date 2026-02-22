@@ -148,3 +148,23 @@ func (s *StatsService) GetTopDirectionalAreas(bucketType string, limit int) ([]m
 func (s *StatsService) GetBidirectionalPatterns(bucketType string, limit int) ([]models.DirectionalBiasStats, error) {
 	return s.statsRepo.GetBidirectionalPatterns(bucketType, limit)
 }
+
+// GetRevisitPatterns retrieves revisit patterns with filters
+func (s *StatsService) GetRevisitPatterns(minVisits int, habitualOnly, periodicOnly bool, limit int) ([]models.RevisitPattern, error) {
+	return s.statsRepo.GetRevisitPatterns(minVisits, habitualOnly, periodicOnly, limit)
+}
+
+// GetTopRevisitLocations retrieves locations with highest revisit strength
+func (s *StatsService) GetTopRevisitLocations(limit int) ([]models.RevisitPattern, error) {
+	return s.statsRepo.GetTopRevisitLocations(limit)
+}
+
+// GetHabitualLocations retrieves habitual locations
+func (s *StatsService) GetHabitualLocations(limit int) ([]models.RevisitPattern, error) {
+	return s.statsRepo.GetHabitualLocations(limit)
+}
+
+// GetPeriodicLocations retrieves locations with periodic visit patterns
+func (s *StatsService) GetPeriodicLocations(limit int) ([]models.RevisitPattern, error) {
+	return s.statsRepo.GetPeriodicLocations(limit)
+}
