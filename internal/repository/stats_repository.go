@@ -936,3 +936,294 @@ func (r *StatsRepository) GetHabitualLocations(limit int) ([]models.RevisitPatte
 func (r *StatsRepository) GetPeriodicLocations(limit int) ([]models.RevisitPattern, error) {
 	return r.GetRevisitPatterns(3, false, true, limit)
 }
+
+// GetSpatialUtilization retrieves utilization stats with filters
+func (r *StatsRepository) GetSpatialUtilization(
+	bucketType string,
+	areaType string,
+	areaKey string,
+	limit int,
+) ([]models.SpatialUtilization, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			transit_intensity, stay_duration_s,
+			utilization_efficiency, transit_dominance, area_depth, coverage_efficiency,
+			distinct_visit_days, distinct_grids, total_grids,
+			first_visit, last_visit,
+			algo_version, created_at, updated_at
+		FROM spatial_utilization_bucketed
+		WHERE 1=1
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+	if areaType != "" {
+		query += " AND area_type = ?"
+		args = append(args, areaType)
+	}
+	if areaKey != "" {
+		query += " AND area_key = ?"
+		args = append(args, areaKey)
+	}
+
+	query += " ORDER BY utilization_efficiency DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query spatial utilization: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.SpatialUtilization
+	for rows.Next() {
+		var s models.SpatialUtilization
+		var bucketKey sql.NullString
+		var firstVisit, lastVisit sql.NullInt64
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &s.AreaKey,
+			&s.TransitIntensity, &s.StayDurationS,
+			&s.UtilizationEfficiency, &s.TransitDominance, &s.AreaDepth, &s.CoverageEfficiency,
+			&s.DistinctVisitDays, &s.DistinctGrids, &s.TotalGrids,
+			&firstVisit, &lastVisit,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan spatial utilization: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if firstVisit.Valid {
+			s.FirstVisit = firstVisit.Int64
+		}
+		if lastVisit.Valid {
+			s.LastVisit = lastVisit.Int64
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}
+
+// GetDestinationAreas retrieves areas with high utilization efficiency (destinations)
+func (r *StatsRepository) GetDestinationAreas(
+	bucketType string,
+	areaType string,
+	limit int,
+) ([]models.SpatialUtilization, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			transit_intensity, stay_duration_s,
+			utilization_efficiency, transit_dominance, area_depth, coverage_efficiency,
+			distinct_visit_days, distinct_grids, total_grids,
+			first_visit, last_visit,
+			algo_version, created_at, updated_at
+		FROM spatial_utilization_bucketed
+		WHERE utilization_efficiency > 10
+		  AND transit_dominance < 0.3
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+	if areaType != "" {
+		query += " AND area_type = ?"
+		args = append(args, areaType)
+	}
+
+	query += " ORDER BY utilization_efficiency DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query destination areas: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.SpatialUtilization
+	for rows.Next() {
+		var s models.SpatialUtilization
+		var bucketKey sql.NullString
+		var firstVisit, lastVisit sql.NullInt64
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &s.AreaKey,
+			&s.TransitIntensity, &s.StayDurationS,
+			&s.UtilizationEfficiency, &s.TransitDominance, &s.AreaDepth, &s.CoverageEfficiency,
+			&s.DistinctVisitDays, &s.DistinctGrids, &s.TotalGrids,
+			&firstVisit, &lastVisit,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan destination area: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if firstVisit.Valid {
+			s.FirstVisit = firstVisit.Int64
+		}
+		if lastVisit.Valid {
+			s.LastVisit = lastVisit.Int64
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}
+
+// GetTransitCorridors retrieves areas with high transit dominance (corridors)
+func (r *StatsRepository) GetTransitCorridors(
+	bucketType string,
+	areaType string,
+	limit int,
+) ([]models.SpatialUtilization, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			transit_intensity, stay_duration_s,
+			utilization_efficiency, transit_dominance, area_depth, coverage_efficiency,
+			distinct_visit_days, distinct_grids, total_grids,
+			first_visit, last_visit,
+			algo_version, created_at, updated_at
+		FROM spatial_utilization_bucketed
+		WHERE transit_dominance > 0.7
+		  AND utilization_efficiency < 1
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+	if areaType != "" {
+		query += " AND area_type = ?"
+		args = append(args, areaType)
+	}
+
+	query += " ORDER BY transit_dominance DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query transit corridors: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.SpatialUtilization
+	for rows.Next() {
+		var s models.SpatialUtilization
+		var bucketKey sql.NullString
+		var firstVisit, lastVisit sql.NullInt64
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &s.AreaKey,
+			&s.TransitIntensity, &s.StayDurationS,
+			&s.UtilizationEfficiency, &s.TransitDominance, &s.AreaDepth, &s.CoverageEfficiency,
+			&s.DistinctVisitDays, &s.DistinctGrids, &s.TotalGrids,
+			&firstVisit, &lastVisit,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan transit corridor: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if firstVisit.Valid {
+			s.FirstVisit = firstVisit.Int64
+		}
+		if lastVisit.Valid {
+			s.LastVisit = lastVisit.Int64
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}
+
+// GetDeepEngagementAreas retrieves areas with high area depth
+func (r *StatsRepository) GetDeepEngagementAreas(
+	bucketType string,
+	areaType string,
+	limit int,
+) ([]models.SpatialUtilization, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			transit_intensity, stay_duration_s,
+			utilization_efficiency, transit_dominance, area_depth, coverage_efficiency,
+			distinct_visit_days, distinct_grids, total_grids,
+			first_visit, last_visit,
+			algo_version, created_at, updated_at
+		FROM spatial_utilization_bucketed
+		WHERE area_depth > 20
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+	if areaType != "" {
+		query += " AND area_type = ?"
+		args = append(args, areaType)
+	}
+
+	query += " ORDER BY area_depth DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query deep engagement areas: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.SpatialUtilization
+	for rows.Next() {
+		var s models.SpatialUtilization
+		var bucketKey sql.NullString
+		var firstVisit, lastVisit sql.NullInt64
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &s.AreaKey,
+			&s.TransitIntensity, &s.StayDurationS,
+			&s.UtilizationEfficiency, &s.TransitDominance, &s.AreaDepth, &s.CoverageEfficiency,
+			&s.DistinctVisitDays, &s.DistinctGrids, &s.TotalGrids,
+			&firstVisit, &lastVisit,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan deep engagement area: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if firstVisit.Valid {
+			s.FirstVisit = firstVisit.Int64
+		}
+		if lastVisit.Valid {
+			s.LastVisit = lastVisit.Int64
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}

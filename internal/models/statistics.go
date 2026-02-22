@@ -276,3 +276,26 @@ type DirectionalBiasStats struct {
 	AlgoVersion              int     `json:"algo_version" db:"algo_version"`
 	CreatedAt                string  `json:"created_at" db:"created_at"`
 }
+
+// SpatialUtilization represents spatial utilization efficiency metrics
+type SpatialUtilization struct {
+	ID                    int64   `json:"id" db:"id"`
+	BucketType            string  `json:"bucket_type" db:"bucket_type"`
+	BucketKey             string  `json:"bucket_key,omitempty" db:"bucket_key"`
+	AreaType              string  `json:"area_type" db:"area_type"`
+	AreaKey               string  `json:"area_key" db:"area_key"`
+	TransitIntensity      int     `json:"transit_intensity" db:"transit_intensity"`
+	StayDurationS         int64   `json:"stay_duration_s" db:"stay_duration_s"`
+	UtilizationEfficiency float64 `json:"utilization_efficiency" db:"utilization_efficiency"`
+	TransitDominance      float64 `json:"transit_dominance" db:"transit_dominance"`
+	AreaDepth             float64 `json:"area_depth" db:"area_depth"`
+	CoverageEfficiency    float64 `json:"coverage_efficiency" db:"coverage_efficiency"`
+	DistinctVisitDays     int     `json:"distinct_visit_days" db:"distinct_visit_days"`
+	DistinctGrids         int     `json:"distinct_grids" db:"distinct_grids"`
+	TotalGrids            int     `json:"total_grids" db:"total_grids"`
+	FirstVisit            int64   `json:"first_visit,omitempty" db:"first_visit"`
+	LastVisit             int64   `json:"last_visit,omitempty" db:"last_visit"`
+	AlgoVersion           string  `json:"algo_version" db:"algo_version"`
+	CreatedAt             int64   `json:"created_at" db:"created_at"`
+	UpdatedAt             int64   `json:"updated_at" db:"updated_at"`
+}

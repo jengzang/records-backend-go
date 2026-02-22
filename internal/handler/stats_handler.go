@@ -477,3 +477,64 @@ func (h *StatsHandler) GetPeriodicLocations(c *gin.Context) {
 
 	response.Success(c, patterns)
 }
+
+// GetSpatialUtilization handles GET /api/v1/stats/spatial-utilization
+func (h *StatsHandler) GetSpatialUtilization(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.Query("area_type")
+	areaKey := c.Query("area_key")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	results, err := h.statsService.GetSpatialUtilization(bucketType, areaType, areaKey, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetDestinationAreas handles GET /api/v1/stats/spatial-utilization/destinations
+func (h *StatsHandler) GetDestinationAreas(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.Query("area_type")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	results, err := h.statsService.GetDestinationAreas(bucketType, areaType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetTransitCorridors handles GET /api/v1/stats/spatial-utilization/corridors
+func (h *StatsHandler) GetTransitCorridors(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.Query("area_type")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	results, err := h.statsService.GetTransitCorridors(bucketType, areaType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetDeepEngagementAreas handles GET /api/v1/stats/spatial-utilization/deep-engagement
+func (h *StatsHandler) GetDeepEngagementAreas(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.Query("area_type")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	results, err := h.statsService.GetDeepEngagementAreas(bucketType, areaType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}

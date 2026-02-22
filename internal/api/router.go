@@ -124,6 +124,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/revisit-patterns/top-locations", statsHandler.GetTopRevisitLocations)
 			stats.GET("/revisit-patterns/habitual", statsHandler.GetHabitualLocations)
 			stats.GET("/revisit-patterns/periodic", statsHandler.GetPeriodicLocations)
+
+			// Spatial utilization endpoints
+			stats.GET("/spatial-utilization", statsHandler.GetSpatialUtilization)
+			stats.GET("/spatial-utilization/destinations", statsHandler.GetDestinationAreas)
+			stats.GET("/spatial-utilization/corridors", statsHandler.GetTransitCorridors)
+			stats.GET("/spatial-utilization/deep-engagement", statsHandler.GetDeepEngagementAreas)
 		}
 
 		// 可视化接口

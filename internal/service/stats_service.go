@@ -168,3 +168,40 @@ func (s *StatsService) GetHabitualLocations(limit int) ([]models.RevisitPattern,
 func (s *StatsService) GetPeriodicLocations(limit int) ([]models.RevisitPattern, error) {
 	return s.statsRepo.GetPeriodicLocations(limit)
 }
+
+// GetSpatialUtilization retrieves utilization stats with filters
+func (s *StatsService) GetSpatialUtilization(
+	bucketType string,
+	areaType string,
+	areaKey string,
+	limit int,
+) ([]models.SpatialUtilization, error) {
+	return s.statsRepo.GetSpatialUtilization(bucketType, areaType, areaKey, limit)
+}
+
+// GetDestinationAreas retrieves areas with high utilization efficiency
+func (s *StatsService) GetDestinationAreas(
+	bucketType string,
+	areaType string,
+	limit int,
+) ([]models.SpatialUtilization, error) {
+	return s.statsRepo.GetDestinationAreas(bucketType, areaType, limit)
+}
+
+// GetTransitCorridors retrieves areas with high transit dominance
+func (s *StatsService) GetTransitCorridors(
+	bucketType string,
+	areaType string,
+	limit int,
+) ([]models.SpatialUtilization, error) {
+	return s.statsRepo.GetTransitCorridors(bucketType, areaType, limit)
+}
+
+// GetDeepEngagementAreas retrieves areas with high area depth
+func (s *StatsService) GetDeepEngagementAreas(
+	bucketType string,
+	areaType string,
+	limit int,
+) ([]models.SpatialUtilization, error) {
+	return s.statsRepo.GetDeepEngagementAreas(bucketType, areaType, limit)
+}
