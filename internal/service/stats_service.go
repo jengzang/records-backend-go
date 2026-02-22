@@ -308,3 +308,8 @@ func (s *StatsService) GetWeeklyPattern() ([]models.TimeSpaceSlice, error) {
 func (s *StatsService) GetHourlyPattern() ([]models.TimeSpaceSlice, error) {
 	return s.statsRepo.GetHourlyPattern()
 }
+
+// GetSpatialComplexity retrieves spatial complexity metrics
+func (s *StatsService) GetSpatialComplexity() (*models.SpatialComplexity, error) {
+	return s.statsRepo.GetSpatialComplexity()
+}

@@ -392,3 +392,17 @@ type TimeSpaceSlice struct {
 	AlgoVersion      string `json:"algo_version" db:"algo_version"`
 	CreatedAt        string `json:"created_at" db:"created_at"`
 }
+
+// SpatialComplexity represents spatial complexity metrics
+type SpatialComplexity struct {
+	ID                   int64   `json:"id" db:"id"`
+	MetricDate           string  `json:"metric_date,omitempty" db:"metric_date"`
+	TrajectoryComplexity float64 `json:"trajectory_complexity" db:"trajectory_complexity"`
+	DirectionChanges     int64   `json:"direction_changes" db:"direction_changes"`
+	AvgTurnAngle         float64 `json:"avg_turn_angle" db:"avg_turn_angle"`
+	SpatialEntropy       float64 `json:"spatial_entropy" db:"spatial_entropy"`
+	PathEfficiency       float64 `json:"path_efficiency" db:"path_efficiency"`
+	Tortuosity           float64 `json:"tortuosity" db:"tortuosity"`
+	AlgoVersion          string  `json:"algo_version" db:"algo_version"`
+	CreatedAt            string  `json:"created_at" db:"created_at"`
+}

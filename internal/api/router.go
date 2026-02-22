@@ -151,6 +151,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/time-space-slices", statsHandler.GetTimeSpaceSlices)
 			stats.GET("/time-space-slices/weekly-pattern", statsHandler.GetWeeklyPattern)
 			stats.GET("/time-space-slices/hourly-pattern", statsHandler.GetHourlyPattern)
+
+			// Spatial complexity endpoint
+			stats.GET("/spatial-complexity", statsHandler.GetSpatialComplexity)
 		}
 
 		// 可视化接口

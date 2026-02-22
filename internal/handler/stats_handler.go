@@ -719,3 +719,19 @@ func (h *StatsHandler) GetHourlyPattern(c *gin.Context) {
 
 	response.Success(c, results)
 }
+
+// GetSpatialComplexity handles GET /api/v1/stats/spatial-complexity
+func (h *StatsHandler) GetSpatialComplexity(c *gin.Context) {
+	result, err := h.statsService.GetSpatialComplexity()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get spatial complexity", err)
+		return
+	}
+
+	if result == nil {
+		response.Error(c, http.StatusNotFound, "No spatial complexity data found", nil)
+		return
+	}
+
+	response.Success(c, result)
+}

@@ -1872,3 +1872,37 @@ func (r *StatsRepository) GetWeeklyPattern() ([]models.TimeSpaceSlice, error) {
 func (r *StatsRepository) GetHourlyPattern() ([]models.TimeSpaceSlice, error) {
 	return r.GetTimeSpaceSlices("HOURLY", 24)
 }
+
+// GetSpatialComplexity retrieves spatial complexity metrics
+func (r *StatsRepository) GetSpatialComplexity() (*models.SpatialComplexity, error) {
+	query := `
+		SELECT id, metric_date, trajectory_complexity, direction_changes,
+		       avg_turn_angle, spatial_entropy, path_efficiency, tortuosity,
+		       algo_version, created_at
+		FROM complexity_metrics
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
+	var complexity models.SpatialComplexity
+	var metricDate sql.NullString
+
+	err := r.db.QueryRow(query).Scan(
+		&complexity.ID, &metricDate, &complexity.TrajectoryComplexity,
+		&complexity.DirectionChanges, &complexity.AvgTurnAngle,
+		&complexity.SpatialEntropy, &complexity.PathEfficiency,
+		&complexity.Tortuosity, &complexity.AlgoVersion, &complexity.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query spatial complexity: %w", err)
+	}
+
+	if metricDate.Valid {
+		complexity.MetricDate = metricDate.String
+	}
+
+	return &complexity, nil
+}
