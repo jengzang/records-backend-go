@@ -157,6 +157,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 			// Road overlap endpoint
 			stats.GET("/road-overlap", statsHandler.GetRoadOverlapSummary)
+
+			// Spatial persona endpoint
+			stats.GET("/spatial-persona", statsHandler.GetSpatialPersona)
 		}
 
 		// 可视化接口

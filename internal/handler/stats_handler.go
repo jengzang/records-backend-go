@@ -746,3 +746,19 @@ func (h *StatsHandler) GetRoadOverlapSummary(c *gin.Context) {
 
 	response.Success(c, result)
 }
+
+// GetSpatialPersona handles GET /api/v1/stats/spatial-persona
+func (h *StatsHandler) GetSpatialPersona(c *gin.Context) {
+	result, err := h.statsService.GetSpatialPersona()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get spatial persona", err)
+		return
+	}
+
+	if result == nil {
+		response.Error(c, http.StatusNotFound, "No spatial persona data found", nil)
+		return
+	}
+
+	response.Success(c, result)
+}

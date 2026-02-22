@@ -318,3 +318,8 @@ func (s *StatsService) GetSpatialComplexity() (*models.SpatialComplexity, error)
 func (s *StatsService) GetRoadOverlapSummary() (*models.RoadOverlapSummary, error) {
 	return s.statsRepo.GetRoadOverlapSummary()
 }
+
+// GetSpatialPersona retrieves the spatial persona profile
+func (s *StatsService) GetSpatialPersona() (*models.SpatialPersona, error) {
+	return s.statsRepo.GetSpatialPersona()
+}

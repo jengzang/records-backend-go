@@ -1979,3 +1979,39 @@ func (r *StatsRepository) GetRoadOverlapSummary() (*models.RoadOverlapSummary, e
 
 	return &summary, nil
 }
+
+// GetSpatialPersona retrieves the spatial persona profile
+func (r *StatsRepository) GetSpatialPersona() (*models.SpatialPersona, error) {
+	query := `
+		SELECT
+			id, psi, behavior_type, stability,
+			footprint_diversity, footprint_spread,
+			movement_intensity, movement_burst,
+			spatial_complexity, spatial_entropy,
+			temporal_regularity, temporal_coverage,
+			road_overlap, features_json,
+			algo_version, created_at
+		FROM spatial_persona
+		ORDER BY id DESC
+		LIMIT 1
+	`
+
+	var persona models.SpatialPersona
+	err := r.db.QueryRow(query).Scan(
+		&persona.ID, &persona.PSI, &persona.BehaviorType, &persona.Stability,
+		&persona.FootprintDiversity, &persona.FootprintSpread,
+		&persona.MovementIntensity, &persona.MovementBurst,
+		&persona.SpatialComplexity, &persona.SpatialEntropy,
+		&persona.TemporalRegularity, &persona.TemporalCoverage,
+		&persona.RoadOverlap, &persona.FeaturesJSON,
+		&persona.AlgoVersion, &persona.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("no spatial persona found")
+		}
+		return nil, fmt.Errorf("failed to query spatial persona: %w", err)
+	}
+
+	return &persona, nil
+}

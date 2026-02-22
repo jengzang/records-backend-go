@@ -435,3 +435,23 @@ type RoadTypeStats struct {
 	DistanceKm   float64 `json:"distance_km"`
 	AvgRatio     float64 `json:"avg_ratio"`
 }
+
+// SpatialPersona represents comprehensive spatial behavior profile
+type SpatialPersona struct {
+	ID                  int64   `json:"id" db:"id"`
+	PSI                 float64 `json:"psi" db:"psi"`                                     // Personal Spatial Index (0-100)
+	BehaviorType        string  `json:"behavior_type" db:"behavior_type"`                 // EXPLORER, COMMUTER, HOMEBODY, TRAVELER, WANDERER, BALANCED
+	Stability           float64 `json:"stability" db:"stability"`                         // 0-1
+	FootprintDiversity  float64 `json:"footprint_diversity" db:"footprint_diversity"`     // log(1 + unique_grids)
+	FootprintSpread     float64 `json:"footprint_spread" db:"footprint_spread"`           // log(1 + total_points)
+	MovementIntensity   float64 `json:"movement_intensity" db:"movement_intensity"`       // From time_space_compression
+	MovementBurst       float64 `json:"movement_burst" db:"movement_burst"`               // From time_space_compression
+	SpatialComplexity   float64 `json:"spatial_complexity" db:"spatial_complexity"`       // From complexity_metrics
+	SpatialEntropy      float64 `json:"spatial_entropy" db:"spatial_entropy"`             // From complexity_metrics
+	TemporalRegularity  float64 `json:"temporal_regularity" db:"temporal_regularity"`     // From time_space_slices
+	TemporalCoverage    float64 `json:"temporal_coverage" db:"temporal_coverage"`         // From time_space_slices
+	RoadOverlap         float64 `json:"road_overlap" db:"road_overlap"`                   // From road_overlap_stats
+	FeaturesJSON        string  `json:"features_json,omitempty" db:"features_json"`       // Full feature vector
+	AlgoVersion         string  `json:"algo_version" db:"algo_version"`
+	CreatedAt           string  `json:"created_at" db:"created_at"`
+}
