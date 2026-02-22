@@ -141,6 +141,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/altitude", statsHandler.GetAltitudeStats)
 			stats.GET("/altitude/highest-spans", statsHandler.GetHighestAltitudeSpans)
 			stats.GET("/altitude/highest-intensity", statsHandler.GetHighestVerticalIntensity)
+
+			// Time-space compression endpoints
+			stats.GET("/time-space-compression", statsHandler.GetTimeSpaceCompression)
+			stats.GET("/time-space-compression/highest-intensity", statsHandler.GetHighestMovementIntensity)
+			stats.GET("/time-space-compression/burst-periods", statsHandler.GetBurstPeriods)
 		}
 
 		// 可视化接口

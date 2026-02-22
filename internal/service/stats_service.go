@@ -264,3 +264,29 @@ func (s *StatsService) GetHighestVerticalIntensity(
 ) ([]models.AltitudeStats, error) {
 	return s.statsRepo.GetHighestVerticalIntensity(bucketType, limit)
 }
+
+// GetTimeSpaceCompression retrieves time-space compression stats with filters
+func (s *StatsService) GetTimeSpaceCompression(
+	bucketType string,
+	areaType string,
+	areaKey string,
+	limit int,
+) ([]models.TimeSpaceCompression, error) {
+	return s.statsRepo.GetTimeSpaceCompression(bucketType, areaType, areaKey, limit)
+}
+
+// GetHighestMovementIntensity retrieves areas with highest movement intensity
+func (s *StatsService) GetHighestMovementIntensity(
+	bucketType string,
+	limit int,
+) ([]models.TimeSpaceCompression, error) {
+	return s.statsRepo.GetHighestMovementIntensity(bucketType, limit)
+}
+
+// GetBurstPeriods retrieves areas with most burst periods
+func (s *StatsService) GetBurstPeriods(
+	bucketType string,
+	limit int,
+) ([]models.TimeSpaceCompression, error) {
+	return s.statsRepo.GetBurstPeriods(bucketType, limit)
+}

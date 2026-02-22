@@ -256,6 +256,7 @@ func isValidSkillName(skillName string) bool {
 		"admin_view_engine":    true,
 		"time_space_slicing":   true,
 		"time_space_compression": true,
+		"movement_intensity":   true,
 		"altitude_dimension":   true,
 		"altitude_stats":       true,
 		"rendering_metadata":   true,

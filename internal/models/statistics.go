@@ -348,3 +348,31 @@ type AltitudeStats struct {
 	CreatedAt         int64   `json:"created_at" db:"created_at"`
 	UpdatedAt         int64   `json:"updated_at" db:"updated_at"`
 }
+
+// TimeSpaceCompression represents time-space compression analysis results
+type TimeSpaceCompression struct {
+	ID                     int64   `json:"id" db:"id"`
+	BucketType             string  `json:"bucket_type" db:"bucket_type"`
+	BucketKey              string  `json:"bucket_key,omitempty" db:"bucket_key"`
+	AreaType               string  `json:"area_type" db:"area_type"`
+	AreaKey                string  `json:"area_key,omitempty" db:"area_key"`
+	MovementIntensity      float64 `json:"movement_intensity" db:"movement_intensity"`
+	BurstIntensity         float64 `json:"burst_intensity" db:"burst_intensity"`
+	BurstCount             int     `json:"burst_count" db:"burst_count"`
+	BurstDurationS         int64   `json:"burst_duration_s" db:"burst_duration_s"`
+	ActiveTimeS            int64   `json:"active_time_s" db:"active_time_s"`
+	InactiveTimeS          int64   `json:"inactive_time_s" db:"inactive_time_s"`
+	ActivityRatio          float64 `json:"activity_ratio" db:"activity_ratio"`
+	EffectiveMovementRatio float64 `json:"effective_movement_ratio" db:"effective_movement_ratio"`
+	AvgSpeedKmh            float64 `json:"avg_speed_kmh" db:"avg_speed_kmh"`
+	MaxSpeedKmh            float64 `json:"max_speed_kmh" db:"max_speed_kmh"`
+	DistancePerDay         float64 `json:"distance_per_day" db:"distance_per_day"`
+	TimeCompressionIndex   float64 `json:"time_compression_index" db:"time_compression_index"`
+	TotalDistanceM         float64 `json:"total_distance_m" db:"total_distance_m"`
+	TotalDurationS         int64   `json:"total_duration_s" db:"total_duration_s"`
+	TripCount              int     `json:"trip_count" db:"trip_count"`
+	DistinctDays           int     `json:"distinct_days" db:"distinct_days"`
+	AlgoVersion            string  `json:"algo_version" db:"algo_version"`
+	CreatedAt              int64   `json:"created_at" db:"created_at"`
+	UpdatedAt              int64   `json:"updated_at" db:"updated_at"`
+}

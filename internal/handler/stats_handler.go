@@ -639,3 +639,47 @@ func (h *StatsHandler) GetHighestVerticalIntensity(c *gin.Context) {
 
 	response.Success(c, results)
 }
+
+// GetTimeSpaceCompression handles GET /api/v1/stats/time-space-compression
+func (h *StatsHandler) GetTimeSpaceCompression(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.Query("area_type")
+	areaKey := c.Query("area_key")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+
+	results, err := h.statsService.GetTimeSpaceCompression(bucketType, areaType, areaKey, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetHighestMovementIntensity handles GET /api/v1/stats/time-space-compression/highest-intensity
+func (h *StatsHandler) GetHighestMovementIntensity(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	results, err := h.statsService.GetHighestMovementIntensity(bucketType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetBurstPeriods handles GET /api/v1/stats/time-space-compression/burst-periods
+func (h *StatsHandler) GetBurstPeriods(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	results, err := h.statsService.GetBurstPeriods(bucketType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}

@@ -1601,3 +1601,201 @@ func (r *StatsRepository) GetHighestVerticalIntensity(
 
 	return results, nil
 }
+
+// GetTimeSpaceCompression retrieves time-space compression stats with filters
+func (r *StatsRepository) GetTimeSpaceCompression(
+	bucketType string,
+	areaType string,
+	areaKey string,
+	limit int,
+) ([]models.TimeSpaceCompression, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			movement_intensity, burst_intensity, burst_count, burst_duration_s,
+			active_time_s, inactive_time_s, activity_ratio, effective_movement_ratio,
+			avg_speed_kmh, max_speed_kmh, distance_per_day, time_compression_index,
+			total_distance_m, total_duration_s, trip_count, distinct_days,
+			algo_version, created_at, updated_at
+		FROM time_space_compression_bucketed
+		WHERE 1=1
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+
+	if areaType != "" {
+		query += " AND area_type = ?"
+		args = append(args, areaType)
+	}
+
+	if areaKey != "" {
+		query += " AND area_key = ?"
+		args = append(args, areaKey)
+	}
+
+	query += " ORDER BY time_compression_index DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query time-space compression: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.TimeSpaceCompression
+	for rows.Next() {
+		var s models.TimeSpaceCompression
+		var bucketKey, areaKey sql.NullString
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &areaKey,
+			&s.MovementIntensity, &s.BurstIntensity, &s.BurstCount, &s.BurstDurationS,
+			&s.ActiveTimeS, &s.InactiveTimeS, &s.ActivityRatio, &s.EffectiveMovementRatio,
+			&s.AvgSpeedKmh, &s.MaxSpeedKmh, &s.DistancePerDay, &s.TimeCompressionIndex,
+			&s.TotalDistanceM, &s.TotalDurationS, &s.TripCount, &s.DistinctDays,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan time-space compression: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if areaKey.Valid {
+			s.AreaKey = areaKey.String
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}
+
+// GetHighestMovementIntensity retrieves areas with highest movement intensity
+func (r *StatsRepository) GetHighestMovementIntensity(
+	bucketType string,
+	limit int,
+) ([]models.TimeSpaceCompression, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			movement_intensity, burst_intensity, burst_count, burst_duration_s,
+			active_time_s, inactive_time_s, activity_ratio, effective_movement_ratio,
+			avg_speed_kmh, max_speed_kmh, distance_per_day, time_compression_index,
+			total_distance_m, total_duration_s, trip_count, distinct_days,
+			algo_version, created_at, updated_at
+		FROM time_space_compression_bucketed
+		WHERE movement_intensity > 0
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+
+	query += " ORDER BY movement_intensity DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query highest movement intensity: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.TimeSpaceCompression
+	for rows.Next() {
+		var s models.TimeSpaceCompression
+		var bucketKey, areaKey sql.NullString
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &areaKey,
+			&s.MovementIntensity, &s.BurstIntensity, &s.BurstCount, &s.BurstDurationS,
+			&s.ActiveTimeS, &s.InactiveTimeS, &s.ActivityRatio, &s.EffectiveMovementRatio,
+			&s.AvgSpeedKmh, &s.MaxSpeedKmh, &s.DistancePerDay, &s.TimeCompressionIndex,
+			&s.TotalDistanceM, &s.TotalDurationS, &s.TripCount, &s.DistinctDays,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan time-space compression: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if areaKey.Valid {
+			s.AreaKey = areaKey.String
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}
+
+// GetBurstPeriods retrieves areas with most burst periods
+func (r *StatsRepository) GetBurstPeriods(
+	bucketType string,
+	limit int,
+) ([]models.TimeSpaceCompression, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			movement_intensity, burst_intensity, burst_count, burst_duration_s,
+			active_time_s, inactive_time_s, activity_ratio, effective_movement_ratio,
+			avg_speed_kmh, max_speed_kmh, distance_per_day, time_compression_index,
+			total_distance_m, total_duration_s, trip_count, distinct_days,
+			algo_version, created_at, updated_at
+		FROM time_space_compression_bucketed
+		WHERE burst_count > 0
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+
+	query += " ORDER BY burst_count DESC, burst_intensity DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query burst periods: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.TimeSpaceCompression
+	for rows.Next() {
+		var s models.TimeSpaceCompression
+		var bucketKey, areaKey sql.NullString
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &areaKey,
+			&s.MovementIntensity, &s.BurstIntensity, &s.BurstCount, &s.BurstDurationS,
+			&s.ActiveTimeS, &s.InactiveTimeS, &s.ActivityRatio, &s.EffectiveMovementRatio,
+			&s.AvgSpeedKmh, &s.MaxSpeedKmh, &s.DistancePerDay, &s.TimeCompressionIndex,
+			&s.TotalDistanceM, &s.TotalDurationS, &s.TripCount, &s.DistinctDays,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan time-space compression: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if areaKey.Valid {
+			s.AreaKey = areaKey.String
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}
