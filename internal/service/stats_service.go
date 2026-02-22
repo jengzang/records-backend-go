@@ -133,3 +133,18 @@ func (s *StatsService) GetHighSpeedZones(bucketType, areaType string, limit int)
 func (s *StatsService) GetSlowLifeZones(bucketType, areaType string, limit int) ([]models.SpeedSpaceStats, error) {
 	return s.statsRepo.GetSlowLifeZones(bucketType, areaType, limit)
 }
+
+// GetDirectionalBiasStats retrieves directional bias statistics
+func (s *StatsService) GetDirectionalBiasStats(bucketType, areaType, areaKey, modeFilter string, limit int) ([]models.DirectionalBiasStats, error) {
+	return s.statsRepo.GetDirectionalBiasStats(bucketType, areaType, areaKey, modeFilter, limit)
+}
+
+// GetTopDirectionalAreas retrieves areas with highest directional concentration
+func (s *StatsService) GetTopDirectionalAreas(bucketType string, limit int) ([]models.DirectionalBiasStats, error) {
+	return s.statsRepo.GetTopDirectionalAreas(bucketType, limit)
+}
+
+// GetBidirectionalPatterns retrieves areas with strong bidirectional patterns
+func (s *StatsService) GetBidirectionalPatterns(bucketType string, limit int) ([]models.DirectionalBiasStats, error) {
+	return s.statsRepo.GetBidirectionalPatterns(bucketType, limit)
+}

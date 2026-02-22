@@ -326,3 +326,66 @@ func (h *StatsHandler) GetSlowLifeZones(c *gin.Context) {
 
 	response.Success(c, zones)
 }
+
+// GetDirectionalBiasStats handles GET /api/v1/stats/directional-bias
+func (h *StatsHandler) GetDirectionalBiasStats(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.DefaultQuery("area_type", "")
+	areaKey := c.DefaultQuery("area_key", "")
+	modeFilter := c.DefaultQuery("mode", "ALL")
+	limitStr := c.DefaultQuery("limit", "50")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	stats, err := h.statsService.GetDirectionalBiasStats(bucketType, areaType, areaKey, modeFilter, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, stats)
+}
+
+// GetTopDirectionalAreas handles GET /api/v1/stats/directional-bias/top-areas
+func (h *StatsHandler) GetTopDirectionalAreas(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	stats, err := h.statsService.GetTopDirectionalAreas(bucketType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, stats)
+}
+
+// GetBidirectionalPatterns handles GET /api/v1/stats/directional-bias/bidirectional
+func (h *StatsHandler) GetBidirectionalPatterns(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid limit parameter")
+		return
+	}
+
+	stats, err := h.statsService.GetBidirectionalPatterns(bucketType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, stats)
+}

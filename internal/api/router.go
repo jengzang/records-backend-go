@@ -113,6 +113,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/speed-space", statsHandler.GetSpeedSpaceStats)
 			stats.GET("/speed-space/high-speed-zones", statsHandler.GetHighSpeedZones)
 			stats.GET("/speed-space/slow-life-zones", statsHandler.GetSlowLifeZones)
+
+			// Directional bias endpoints
+			stats.GET("/directional-bias", statsHandler.GetDirectionalBiasStats)
+			stats.GET("/directional-bias/top-areas", statsHandler.GetTopDirectionalAreas)
+			stats.GET("/directional-bias/bidirectional", statsHandler.GetBidirectionalPatterns)
 		}
 
 		// 可视化接口

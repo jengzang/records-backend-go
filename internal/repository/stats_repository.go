@@ -701,3 +701,162 @@ func (r *StatsRepository) GetSlowLifeZones(bucketType, areaType string, limit in
 
 	return zones, nil
 }
+
+// GetDirectionalBiasStats retrieves directional bias statistics
+func (r *StatsRepository) GetDirectionalBiasStats(
+	bucketType, areaType, areaKey, modeFilter string,
+	limit int,
+) ([]models.DirectionalBiasStats, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key, mode_filter,
+			direction_histogram_json, num_bins,
+			dominant_direction_deg, directional_concentration,
+			bidirectional_score, directional_entropy,
+			total_distance, total_duration, segment_count,
+			algo_version, created_at
+		FROM directional_stats_bucketed
+		WHERE 1=1
+	`
+
+	var args []interface{}
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+	if areaType != "" {
+		query += " AND area_type = ?"
+		args = append(args, areaType)
+	}
+	if areaKey != "" {
+		query += " AND area_key = ?"
+		args = append(args, areaKey)
+	}
+	if modeFilter != "" {
+		query += " AND mode_filter = ?"
+		args = append(args, modeFilter)
+	}
+
+	query += " ORDER BY total_distance DESC"
+	if limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, limit)
+	}
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query directional bias stats: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []models.DirectionalBiasStats
+	for rows.Next() {
+		var s models.DirectionalBiasStats
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &s.BucketKey, &s.AreaType, &s.AreaKey, &s.ModeFilter,
+			&s.DirectionHistogramJSON, &s.NumBins,
+			&s.DominantDirectionDeg, &s.DirectionalConcentration,
+			&s.BidirectionalScore, &s.DirectionalEntropy,
+			&s.TotalDistance, &s.TotalDuration, &s.SegmentCount,
+			&s.AlgoVersion, &s.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan directional bias stat: %w", err)
+		}
+		stats = append(stats, s)
+	}
+
+	return stats, nil
+}
+
+// GetTopDirectionalAreas retrieves areas with highest directional concentration
+func (r *StatsRepository) GetTopDirectionalAreas(
+	bucketType string,
+	limit int,
+) ([]models.DirectionalBiasStats, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key, mode_filter,
+			direction_histogram_json, num_bins,
+			dominant_direction_deg, directional_concentration,
+			bidirectional_score, directional_entropy,
+			total_distance, total_duration, segment_count,
+			algo_version, created_at
+		FROM directional_stats_bucketed
+		WHERE bucket_type = ?
+			AND mode_filter = 'ALL'
+		ORDER BY directional_concentration DESC
+		LIMIT ?
+	`
+
+	rows, err := r.db.Query(query, bucketType, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query top directional areas: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []models.DirectionalBiasStats
+	for rows.Next() {
+		var s models.DirectionalBiasStats
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &s.BucketKey, &s.AreaType, &s.AreaKey, &s.ModeFilter,
+			&s.DirectionHistogramJSON, &s.NumBins,
+			&s.DominantDirectionDeg, &s.DirectionalConcentration,
+			&s.BidirectionalScore, &s.DirectionalEntropy,
+			&s.TotalDistance, &s.TotalDuration, &s.SegmentCount,
+			&s.AlgoVersion, &s.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan top directional area: %w", err)
+		}
+		stats = append(stats, s)
+	}
+
+	return stats, nil
+}
+
+// GetBidirectionalPatterns retrieves areas with strong bidirectional patterns
+func (r *StatsRepository) GetBidirectionalPatterns(
+	bucketType string,
+	limit int,
+) ([]models.DirectionalBiasStats, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key, mode_filter,
+			direction_histogram_json, num_bins,
+			dominant_direction_deg, directional_concentration,
+			bidirectional_score, directional_entropy,
+			total_distance, total_duration, segment_count,
+			algo_version, created_at
+		FROM directional_stats_bucketed
+		WHERE bucket_type = ?
+			AND mode_filter = 'ALL'
+		ORDER BY bidirectional_score DESC
+		LIMIT ?
+	`
+
+	rows, err := r.db.Query(query, bucketType, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query bidirectional patterns: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []models.DirectionalBiasStats
+	for rows.Next() {
+		var s models.DirectionalBiasStats
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &s.BucketKey, &s.AreaType, &s.AreaKey, &s.ModeFilter,
+			&s.DirectionHistogramJSON, &s.NumBins,
+			&s.DominantDirectionDeg, &s.DirectionalConcentration,
+			&s.BidirectionalScore, &s.DirectionalEntropy,
+			&s.TotalDistance, &s.TotalDuration, &s.SegmentCount,
+			&s.AlgoVersion, &s.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan bidirectional pattern: %w", err)
+		}
+		stats = append(stats, s)
+	}
+
+	return stats, nil
+}

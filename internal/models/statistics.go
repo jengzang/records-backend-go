@@ -229,3 +229,24 @@ type SpeedSpaceStats struct {
 	AlgoVersion     int     `json:"algo_version" db:"algo_version"`
 	CreatedAt       string  `json:"created_at" db:"created_at"`
 }
+
+// DirectionalBiasStats represents directional movement pattern statistics
+type DirectionalBiasStats struct {
+	ID                       int64   `json:"id" db:"id"`
+	BucketType               string  `json:"bucket_type" db:"bucket_type"`                               // year, month, all
+	BucketKey                string  `json:"bucket_key" db:"bucket_key"`                                 // 2025, 2025-01, all
+	AreaType                 string  `json:"area_type" db:"area_type"`                                   // PROVINCE, CITY, COUNTY
+	AreaKey                  string  `json:"area_key" db:"area_key"`                                     // Area name
+	ModeFilter               string  `json:"mode_filter" db:"mode_filter"`                               // ALL, WALK, CAR, TRAIN, FLIGHT
+	DirectionHistogramJSON   string  `json:"direction_histogram_json" db:"direction_histogram_json"`     // JSON array of bins
+	NumBins                  int     `json:"num_bins" db:"num_bins"`                                     // 8 or 16
+	DominantDirectionDeg     float64 `json:"dominant_direction_deg" db:"dominant_direction_deg"`         // 0-360 degrees
+	DirectionalConcentration float64 `json:"directional_concentration" db:"directional_concentration"`   // 0-1
+	BidirectionalScore       float64 `json:"bidirectional_score" db:"bidirectional_score"`               // 0-1
+	DirectionalEntropy       float64 `json:"directional_entropy" db:"directional_entropy"`               // 0-1
+	TotalDistance            float64 `json:"total_distance" db:"total_distance"`                         // meters
+	TotalDuration            int64   `json:"total_duration" db:"total_duration"`                         // seconds
+	SegmentCount             int     `json:"segment_count" db:"segment_count"`
+	AlgoVersion              int     `json:"algo_version" db:"algo_version"`
+	CreatedAt                string  `json:"created_at" db:"created_at"`
+}

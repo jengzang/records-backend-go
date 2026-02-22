@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"time"
 
 	"github.com/jengzang/records-backend-go/internal/analysis"
 )
@@ -36,104 +37,213 @@ func (a *DirectionalBiasAnalyzer) Analyze(ctx context.Context, taskID int64, mod
 
 	// Clear existing stats (full recompute)
 	if mode == "full" {
-		if _, err := a.DB.ExecContext(ctx, "DELETE FROM directional_stats"); err != nil {
-			return fmt.Errorf("failed to clear directional_stats: %w", err)
+		if _, err := a.DB.ExecContext(ctx, "DELETE FROM directional_stats_bucketed"); err != nil {
+			return fmt.Errorf("failed to clear directional_stats_bucketed: %w", err)
 		}
 		log.Printf("[DirectionalBiasAnalyzer] Cleared existing directional stats")
 	}
 
-	// Query track points with heading data
+	// Query segments with coordinates and transport mode
 	query := `
 		SELECT
-			heading, distance, dataTime
-		FROM "一生足迹"
-		WHERE outlier_flag = 0
-			AND heading IS NOT NULL
-			AND heading >= 0
-			AND heading < 360
-			AND distance IS NOT NULL
-		ORDER BY dataTime
+			s.id,
+			s.start_time,
+			s.end_time,
+			s.distance_m,
+			s.duration_s,
+			s.mode,
+			p1.latitude AS start_lat,
+			p1.longitude AS start_lon,
+			p2.latitude AS end_lat,
+			p2.longitude AS end_lon,
+			p1.province,
+			p1.city,
+			p1.county
+		FROM segments s
+		JOIN "一生足迹" p1 ON s.start_point_id = p1.id
+		JOIN "一生足迹" p2 ON s.end_point_id = p2.id
+		WHERE s.distance_m > 10
+			AND p1.latitude IS NOT NULL
+			AND p1.longitude IS NOT NULL
+			AND p2.latitude IS NOT NULL
+			AND p2.longitude IS NOT NULL
+		ORDER BY s.start_time
 	`
 
 	rows, err := a.DB.QueryContext(ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to query track points: %w", err)
+		return fmt.Errorf("failed to query segments: %w", err)
 	}
 	defer rows.Close()
 
-	// Initialize direction buckets (8 directions: N, NE, E, SE, S, SW, W, NW)
-	buckets := make([]DirectionBucket, 8)
-	for i := 0; i < 8; i++ {
-		buckets[i].Bucket = i
+	// Aggregation map: (bucket_type, bucket_key, area_type, area_key, mode_filter) -> stats
+	type AggKey struct {
+		BucketType string
+		BucketKey  string
+		AreaType   string
+		AreaKey    string
+		ModeFilter string
 	}
+	aggMap := make(map[AggKey]*DirectionalAggregation)
 
-	totalPoints := 0
-	totalDistance := 0.0
-	var prevTime int64
-
+	totalSegments := 0
 	for rows.Next() {
-		var heading, distance float64
-		var dataTime int64
-
-		if err := rows.Scan(&heading, &distance, &dataTime); err != nil {
-			return fmt.Errorf("failed to scan track point: %w", err)
+		var seg Segment
+		if err := rows.Scan(
+			&seg.ID, &seg.StartTime, &seg.EndTime, &seg.Distance, &seg.Duration, &seg.Mode,
+			&seg.StartLat, &seg.StartLon, &seg.EndLat, &seg.EndLon,
+			&seg.Province, &seg.City, &seg.County,
+		); err != nil {
+			return fmt.Errorf("failed to scan segment: %w", err)
 		}
 
-		totalPoints++
-		totalDistance += distance
+		totalSegments++
 
-		// Calculate direction bucket (0=N, 1=NE, 2=E, ..., 7=NW)
-		bucket := a.headingToBucket(heading)
-		buckets[bucket].Distance += distance
-		buckets[bucket].PointCount++
+		// Calculate bearing
+		bearing := calculateBearing(seg.StartLat, seg.StartLon, seg.EndLat, seg.EndLon)
+		bucket := bearingToBucket(bearing, 8)
 
-		if prevTime > 0 {
-			duration := dataTime - prevTime
-			buckets[bucket].Duration += duration
+		// Extract time dimensions
+		startTime := time.Unix(seg.StartTime, 0)
+		year := startTime.Format("2006")
+		month := startTime.Format("2006-01")
+
+		// Define aggregation keys
+		areas := []struct {
+			areaType string
+			areaKey  string
+		}{
+			{"PROVINCE", seg.Province.String},
+			{"CITY", seg.City.String},
+			{"COUNTY", seg.County.String},
 		}
 
-		prevTime = dataTime
+		bucketTypes := []struct {
+			bucketType string
+			bucketKey  string
+		}{
+			{"all", "all"},
+			{"year", year},
+			{"month", month},
+		}
+
+		modeFilters := []string{"ALL", seg.Mode.String}
+
+		// Aggregate across all dimensions
+		for _, area := range areas {
+			if area.areaKey == "" {
+				continue
+			}
+			for _, bt := range bucketTypes {
+				for _, mode := range modeFilters {
+					if mode == "" {
+						continue
+					}
+
+					key := AggKey{
+						BucketType: bt.bucketType,
+						BucketKey:  bt.bucketKey,
+						AreaType:   area.areaType,
+						AreaKey:    area.areaKey,
+						ModeFilter: mode,
+					}
+
+					if aggMap[key] == nil {
+						aggMap[key] = &DirectionalAggregation{
+							Buckets: make([]float64, 8),
+							Counts:  make([]int, 8),
+						}
+					}
+
+					agg := aggMap[key]
+					agg.Buckets[bucket] += seg.Distance
+					agg.Counts[bucket]++
+					agg.TotalDistance += seg.Distance
+					agg.TotalDuration += seg.Duration
+					agg.SegmentCount++
+				}
+			}
+		}
+
+		// Progress update every 1000 segments
+		if totalSegments%1000 == 0 {
+			if err := a.UpdateTaskProgress(taskID, int64(totalSegments), 0, 0); err != nil {
+				log.Printf("[DirectionalBiasAnalyzer] Warning: failed to update progress: %v", err)
+			}
+		}
 	}
 
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("error iterating rows: %w", err)
 	}
 
-	// Calculate percentages
-	for i := range buckets {
-		if totalDistance > 0 {
-			buckets[i].Percentage = (buckets[i].Distance / totalDistance) * 100
+	log.Printf("[DirectionalBiasAnalyzer] Processed %d segments, generated %d aggregations", totalSegments, len(aggMap))
+
+	// Calculate metrics and insert results
+	insertedCount := 0
+	for key, agg := range aggMap {
+		// Calculate advanced metrics
+		metrics := calculateDirectionalMetrics(agg.Buckets, agg.Counts)
+
+		// Prepare histogram JSON
+		histogram := make([]map[string]interface{}, 8)
+		for i := 0; i < 8; i++ {
+			histogram[i] = map[string]interface{}{
+				"bin":      i,
+				"distance": agg.Buckets[i],
+				"count":    agg.Counts[i],
+			}
+		}
+		histogramJSON, _ := json.Marshal(histogram)
+
+		// Insert into database
+		insertQuery := `
+			INSERT INTO directional_stats_bucketed (
+				bucket_type, bucket_key, area_type, area_key, mode_filter,
+				direction_histogram_json, num_bins,
+				dominant_direction_deg, directional_concentration,
+				bidirectional_score, directional_entropy,
+				total_distance, total_duration, segment_count,
+				algo_version
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+			ON CONFLICT(bucket_type, bucket_key, area_type, area_key, mode_filter)
+			DO UPDATE SET
+				direction_histogram_json = excluded.direction_histogram_json,
+				num_bins = excluded.num_bins,
+				dominant_direction_deg = excluded.dominant_direction_deg,
+				directional_concentration = excluded.directional_concentration,
+				bidirectional_score = excluded.bidirectional_score,
+				directional_entropy = excluded.directional_entropy,
+				total_distance = excluded.total_distance,
+				total_duration = excluded.total_duration,
+				segment_count = excluded.segment_count,
+				created_at = CURRENT_TIMESTAMP
+		`
+
+		_, err := a.DB.ExecContext(ctx, insertQuery,
+			key.BucketType, key.BucketKey, key.AreaType, key.AreaKey, key.ModeFilter,
+			string(histogramJSON), 8,
+			metrics.DominantDirection, metrics.Concentration,
+			metrics.BidirectionalScore, metrics.Entropy,
+			agg.TotalDistance, agg.TotalDuration, agg.SegmentCount,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert directional stats: %w", err)
+		}
+
+		insertedCount++
+		if insertedCount%100 == 0 {
+			log.Printf("[DirectionalBiasAnalyzer] Inserted %d/%d records", insertedCount, len(aggMap))
 		}
 	}
 
-	log.Printf("[DirectionalBiasAnalyzer] Processed %d points, total distance: %.2f m", totalPoints, totalDistance)
-
-	// Update task progress
-	if err := a.UpdateTaskProgress(taskID, int64(totalPoints), int64(totalPoints), 0); err != nil {
-		return fmt.Errorf("failed to update task progress: %w", err)
-	}
-
-	// Insert directional stats
-	if err := a.insertDirectionalStats(ctx, buckets); err != nil {
-		return fmt.Errorf("failed to insert directional stats: %w", err)
-	}
-
-	// Find dominant direction
-	dominantBucket := 0
-	maxPercentage := 0.0
-	for i, bucket := range buckets {
-		if bucket.Percentage > maxPercentage {
-			maxPercentage = bucket.Percentage
-			dominantBucket = i
-		}
-	}
+	log.Printf("[DirectionalBiasAnalyzer] Inserted %d directional stats records", insertedCount)
 
 	// Mark task as completed
 	summary := map[string]interface{}{
-		"total_points":      totalPoints,
-		"total_distance":    totalDistance,
-		"dominant_direction": a.bucketToDirection(dominantBucket),
-		"dominant_percent":   maxPercentage,
+		"total_segments":    totalSegments,
+		"total_aggregations": len(aggMap),
+		"inserted_records":  insertedCount,
 	}
 	summaryJSON, _ := json.Marshal(summary)
 
@@ -145,85 +255,130 @@ func (a *DirectionalBiasAnalyzer) Analyze(ctx context.Context, taskID int64, mod
 	return nil
 }
 
-// DirectionBucket holds statistics for a direction bucket
-type DirectionBucket struct {
-	Bucket     int
-	Distance   float64
-	Duration   int64
-	PointCount int64
-	Percentage float64
+// Segment represents a trajectory segment with coordinates
+type Segment struct {
+	ID        int64
+	StartTime int64
+	EndTime   int64
+	Distance  float64
+	Duration  int64
+	Mode      sql.NullString
+	StartLat  float64
+	StartLon  float64
+	EndLat    float64
+	EndLon    float64
+	Province  sql.NullString
+	City      sql.NullString
+	County    sql.NullString
 }
 
-// headingToBucket converts heading (0-360) to bucket (0-7)
-// 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-func (a *DirectionalBiasAnalyzer) headingToBucket(heading float64) int {
-	// Normalize heading to 0-360
-	heading = math.Mod(heading, 360)
-	if heading < 0 {
-		heading += 360
-	}
+// DirectionalAggregation holds aggregated directional statistics
+type DirectionalAggregation struct {
+	Buckets       []float64 // Distance per bucket
+	Counts        []int     // Segment count per bucket
+	TotalDistance float64
+	TotalDuration int64
+	SegmentCount  int
+}
 
-	// Each bucket covers 45 degrees
-	// N: 337.5-22.5, NE: 22.5-67.5, E: 67.5-112.5, etc.
-	bucket := int((heading + 22.5) / 45.0)
-	if bucket >= 8 {
+// DirectionalMetrics holds calculated directional metrics
+type DirectionalMetrics struct {
+	DominantDirection   float64
+	Concentration       float64
+	BidirectionalScore  float64
+	Entropy             float64
+}
+
+// calculateBearing calculates the initial bearing from point 1 to point 2
+// using the great circle formula
+func calculateBearing(lat1, lon1, lat2, lon2 float64) float64 {
+	lat1Rad := lat1 * math.Pi / 180
+	lat2Rad := lat2 * math.Pi / 180
+	deltaLon := (lon2 - lon1) * math.Pi / 180
+
+	y := math.Sin(deltaLon) * math.Cos(lat2Rad)
+	x := math.Cos(lat1Rad)*math.Sin(lat2Rad) -
+		math.Sin(lat1Rad)*math.Cos(lat2Rad)*math.Cos(deltaLon)
+
+	bearing := math.Atan2(y, x) * 180 / math.Pi
+	return math.Mod(bearing+360, 360) // Normalize to [0, 360)
+}
+
+// bearingToBucket converts bearing (0-360) to bucket index
+func bearingToBucket(bearing float64, numBins int) int {
+	binSize := 360.0 / float64(numBins)
+	bucket := int((bearing + binSize/2) / binSize)
+	if bucket >= numBins {
 		bucket = 0
 	}
-
 	return bucket
 }
 
-// bucketToDirection converts bucket number to direction name
-func (a *DirectionalBiasAnalyzer) bucketToDirection(bucket int) string {
-	directions := []string{"N", "NE", "E", "SE", "S", "SW", "W", "NW"}
-	if bucket >= 0 && bucket < 8 {
-		return directions[bucket]
-	}
-	return "UNKNOWN"
-}
-
-// insertDirectionalStats inserts directional stats into the database
-func (a *DirectionalBiasAnalyzer) insertDirectionalStats(ctx context.Context, buckets []DirectionBucket) error {
-	if len(buckets) == 0 {
-		return nil
+// calculateDirectionalMetrics calculates advanced directional metrics
+func calculateDirectionalMetrics(buckets []float64, counts []int) DirectionalMetrics {
+	numBins := len(buckets)
+	totalDistance := 0.0
+	for _, d := range buckets {
+		totalDistance += d
 	}
 
-	tx, err := a.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+	if totalDistance == 0 {
+		return DirectionalMetrics{}
 	}
-	defer tx.Rollback()
 
-	insertQuery := `
-		INSERT INTO directional_stats (
-			metric_date, direction_bucket, distance_m, duration_s,
-			point_count, percentage,
-			algo_version, created_at
-		) VALUES (NULL, ?, ?, ?, ?, ?, 'v1', CURRENT_TIMESTAMP)
-	`
-
-	stmt, err := tx.PrepareContext(ctx, insertQuery)
-	if err != nil {
-		return fmt.Errorf("failed to prepare statement: %w", err)
+	// 1. Dominant direction (weighted average of dominant bin)
+	dominantBin := 0
+	maxDistance := 0.0
+	for i, d := range buckets {
+		if d > maxDistance {
+			maxDistance = d
+			dominantBin = i
+		}
 	}
-	defer stmt.Close()
+	binSize := 360.0 / float64(numBins)
+	dominantDirection := float64(dominantBin)*binSize + binSize/2
 
-	for _, bucket := range buckets {
-		_, err := stmt.ExecContext(ctx,
-			bucket.Bucket, bucket.Distance, bucket.Duration,
-			bucket.PointCount, bucket.Percentage,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to insert directional stat: %w", err)
+	// 2. Directional concentration (vector synthesis)
+	var sumX, sumY float64
+	for i, d := range buckets {
+		angle := (float64(i)*binSize + binSize/2) * math.Pi / 180
+		weight := d / totalDistance
+		sumX += weight * math.Cos(angle)
+		sumY += weight * math.Sin(angle)
+	}
+	concentration := math.Sqrt(sumX*sumX + sumY*sumY)
+
+	// 3. Bidirectional score (opposite bin pairing)
+	bidirectionalScore := 0.0
+	for i := 0; i < numBins/2; i++ {
+		opposite := i + numBins/2
+		pairDistance := buckets[i] + buckets[opposite]
+		if pairDistance > 0 {
+			balance := math.Min(buckets[i], buckets[opposite]) / pairDistance
+			weight := pairDistance / totalDistance
+			bidirectionalScore += balance * weight
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	// 4. Directional entropy (Shannon entropy, normalized)
+	entropy := 0.0
+	for _, d := range buckets {
+		if d > 0 {
+			p := d / totalDistance
+			entropy -= p * math.Log2(p)
+		}
+	}
+	maxEntropy := math.Log2(float64(numBins))
+	if maxEntropy > 0 {
+		entropy /= maxEntropy // Normalize to [0, 1]
 	}
 
-	log.Printf("[DirectionalBiasAnalyzer] Inserted %d directional stats", len(buckets))
-	return nil
+	return DirectionalMetrics{
+		DominantDirection:  dominantDirection,
+		Concentration:      concentration,
+		BidirectionalScore: bidirectionalScore,
+		Entropy:            entropy,
+	}
 }
 
 // Register the analyzer
