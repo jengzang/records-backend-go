@@ -595,3 +595,47 @@ func (h *StatsHandler) GetDensityClusters(c *gin.Context) {
 
 	response.Success(c, results)
 }
+
+// GetAltitudeStats handles GET /api/v1/stats/altitude
+func (h *StatsHandler) GetAltitudeStats(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	areaType := c.Query("area_type")
+	areaKey := c.Query("area_key")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+
+	results, err := h.statsService.GetAltitudeStats(bucketType, areaType, areaKey, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetHighestAltitudeSpans handles GET /api/v1/stats/altitude/highest-spans
+func (h *StatsHandler) GetHighestAltitudeSpans(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	results, err := h.statsService.GetHighestAltitudeSpans(bucketType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetHighestVerticalIntensity handles GET /api/v1/stats/altitude/highest-intensity
+func (h *StatsHandler) GetHighestVerticalIntensity(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	results, err := h.statsService.GetHighestVerticalIntensity(bucketType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}

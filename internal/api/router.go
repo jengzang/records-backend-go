@@ -136,6 +136,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/density/core", statsHandler.GetCoreAreas)
 			stats.GET("/density/rare", statsHandler.GetRareVisits)
 			stats.GET("/density/clusters", statsHandler.GetDensityClusters)
+
+			// Altitude dimension endpoints
+			stats.GET("/altitude", statsHandler.GetAltitudeStats)
+			stats.GET("/altitude/highest-spans", statsHandler.GetHighestAltitudeSpans)
+			stats.GET("/altitude/highest-intensity", statsHandler.GetHighestVerticalIntensity)
 		}
 
 		// 可视化接口

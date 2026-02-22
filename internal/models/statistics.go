@@ -322,3 +322,29 @@ type SpatialDensityGrid struct {
 	CreatedAt      int64    `json:"created_at" db:"created_at"`
 	UpdatedAt      int64    `json:"updated_at" db:"updated_at"`
 }
+
+// AltitudeStats represents altitude dimension analysis results
+type AltitudeStats struct {
+	ID                int64   `json:"id" db:"id"`
+	BucketType        string  `json:"bucket_type" db:"bucket_type"`
+	BucketKey         string  `json:"bucket_key,omitempty" db:"bucket_key"`
+	AreaType          string  `json:"area_type" db:"area_type"`
+	AreaKey           string  `json:"area_key,omitempty" db:"area_key"`
+	MinAltitude       float64 `json:"min_altitude" db:"min_altitude"`
+	MaxAltitude       float64 `json:"max_altitude" db:"max_altitude"`
+	AvgAltitude       float64 `json:"avg_altitude" db:"avg_altitude"`
+	AltitudeSpan      float64 `json:"altitude_span" db:"altitude_span"`
+	P25Altitude       float64 `json:"p25_altitude" db:"p25_altitude"`
+	P50Altitude       float64 `json:"p50_altitude" db:"p50_altitude"`
+	P75Altitude       float64 `json:"p75_altitude" db:"p75_altitude"`
+	P90Altitude       float64 `json:"p90_altitude" db:"p90_altitude"`
+	TotalAscent       float64 `json:"total_ascent" db:"total_ascent"`
+	TotalDescent      float64 `json:"total_descent" db:"total_descent"`
+	VerticalIntensity float64 `json:"vertical_intensity" db:"vertical_intensity"`
+	PointCount        int     `json:"point_count" db:"point_count"`
+	SegmentCount      int     `json:"segment_count" db:"segment_count"`
+	TotalDistance     float64 `json:"total_distance" db:"total_distance"`
+	AlgoVersion       string  `json:"algo_version" db:"algo_version"`
+	CreatedAt         int64   `json:"created_at" db:"created_at"`
+	UpdatedAt         int64   `json:"updated_at" db:"updated_at"`
+}

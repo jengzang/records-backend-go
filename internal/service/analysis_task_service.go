@@ -257,6 +257,7 @@ func isValidSkillName(skillName string) bool {
 		"time_space_slicing":   true,
 		"time_space_compression": true,
 		"altitude_dimension":   true,
+		"altitude_stats":       true,
 		"rendering_metadata":   true,
 		"time_axis_map":        true,
 		"stay_annotation":      true,

@@ -238,3 +238,29 @@ func (s *StatsService) GetDensityClusters(
 ) ([]models.SpatialDensityGrid, error) {
 	return s.statsRepo.GetDensityClusters(bucketType, limit)
 }
+
+// GetAltitudeStats retrieves altitude statistics with filters
+func (s *StatsService) GetAltitudeStats(
+	bucketType string,
+	areaType string,
+	areaKey string,
+	limit int,
+) ([]models.AltitudeStats, error) {
+	return s.statsRepo.GetAltitudeStats(bucketType, areaType, areaKey, limit)
+}
+
+// GetHighestAltitudeSpans retrieves areas with highest altitude spans
+func (s *StatsService) GetHighestAltitudeSpans(
+	bucketType string,
+	limit int,
+) ([]models.AltitudeStats, error) {
+	return s.statsRepo.GetHighestAltitudeSpans(bucketType, limit)
+}
+
+// GetHighestVerticalIntensity retrieves areas with highest vertical intensity
+func (s *StatsService) GetHighestVerticalIntensity(
+	bucketType string,
+	limit int,
+) ([]models.AltitudeStats, error) {
+	return s.statsRepo.GetHighestVerticalIntensity(bucketType, limit)
+}

@@ -8,6 +8,7 @@ import (
 	"github.com/jengzang/records-backend-go/internal/database"
 
 	// Import analyzer packages to register them
+	_ "github.com/jengzang/records-backend-go/internal/analysis/advanced"
 	_ "github.com/jengzang/records-backend-go/internal/analysis/annotation"
 	_ "github.com/jengzang/records-backend-go/internal/analysis/behavior"
 	_ "github.com/jengzang/records-backend-go/internal/analysis/foundation"

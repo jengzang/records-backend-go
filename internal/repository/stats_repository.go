@@ -1403,3 +1403,201 @@ func (r *StatsRepository) GetDensityClusters(
 
 	return results, nil
 }
+
+// GetAltitudeStats retrieves altitude statistics with filters
+func (r *StatsRepository) GetAltitudeStats(
+	bucketType string,
+	areaType string,
+	areaKey string,
+	limit int,
+) ([]models.AltitudeStats, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			min_altitude, max_altitude, avg_altitude, altitude_span,
+			p25_altitude, p50_altitude, p75_altitude, p90_altitude,
+			total_ascent, total_descent, vertical_intensity,
+			point_count, segment_count, total_distance,
+			algo_version, created_at, updated_at
+		FROM altitude_stats_bucketed
+		WHERE 1=1
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+
+	if areaType != "" {
+		query += " AND area_type = ?"
+		args = append(args, areaType)
+	}
+
+	if areaKey != "" {
+		query += " AND area_key = ?"
+		args = append(args, areaKey)
+	}
+
+	query += " ORDER BY altitude_span DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query altitude stats: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.AltitudeStats
+	for rows.Next() {
+		var s models.AltitudeStats
+		var bucketKey, areaKey sql.NullString
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &areaKey,
+			&s.MinAltitude, &s.MaxAltitude, &s.AvgAltitude, &s.AltitudeSpan,
+			&s.P25Altitude, &s.P50Altitude, &s.P75Altitude, &s.P90Altitude,
+			&s.TotalAscent, &s.TotalDescent, &s.VerticalIntensity,
+			&s.PointCount, &s.SegmentCount, &s.TotalDistance,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan altitude stats: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if areaKey.Valid {
+			s.AreaKey = areaKey.String
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}
+
+// GetHighestAltitudeSpans retrieves areas with highest altitude spans
+func (r *StatsRepository) GetHighestAltitudeSpans(
+	bucketType string,
+	limit int,
+) ([]models.AltitudeStats, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			min_altitude, max_altitude, avg_altitude, altitude_span,
+			p25_altitude, p50_altitude, p75_altitude, p90_altitude,
+			total_ascent, total_descent, vertical_intensity,
+			point_count, segment_count, total_distance,
+			algo_version, created_at, updated_at
+		FROM altitude_stats_bucketed
+		WHERE altitude_span > 0
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+
+	query += " ORDER BY altitude_span DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query highest altitude spans: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.AltitudeStats
+	for rows.Next() {
+		var s models.AltitudeStats
+		var bucketKey, areaKey sql.NullString
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &areaKey,
+			&s.MinAltitude, &s.MaxAltitude, &s.AvgAltitude, &s.AltitudeSpan,
+			&s.P25Altitude, &s.P50Altitude, &s.P75Altitude, &s.P90Altitude,
+			&s.TotalAscent, &s.TotalDescent, &s.VerticalIntensity,
+			&s.PointCount, &s.SegmentCount, &s.TotalDistance,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan altitude stats: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if areaKey.Valid {
+			s.AreaKey = areaKey.String
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}
+
+// GetHighestVerticalIntensity retrieves areas with highest vertical intensity
+func (r *StatsRepository) GetHighestVerticalIntensity(
+	bucketType string,
+	limit int,
+) ([]models.AltitudeStats, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, area_type, area_key,
+			min_altitude, max_altitude, avg_altitude, altitude_span,
+			p25_altitude, p50_altitude, p75_altitude, p90_altitude,
+			total_ascent, total_descent, vertical_intensity,
+			point_count, segment_count, total_distance,
+			algo_version, created_at, updated_at
+		FROM altitude_stats_bucketed
+		WHERE vertical_intensity > 0
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+
+	query += " ORDER BY vertical_intensity DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query highest vertical intensity: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.AltitudeStats
+	for rows.Next() {
+		var s models.AltitudeStats
+		var bucketKey, areaKey sql.NullString
+
+		err := rows.Scan(
+			&s.ID, &s.BucketType, &bucketKey, &s.AreaType, &areaKey,
+			&s.MinAltitude, &s.MaxAltitude, &s.AvgAltitude, &s.AltitudeSpan,
+			&s.P25Altitude, &s.P50Altitude, &s.P75Altitude, &s.P90Altitude,
+			&s.TotalAscent, &s.TotalDescent, &s.VerticalIntensity,
+			&s.PointCount, &s.SegmentCount, &s.TotalDistance,
+			&s.AlgoVersion, &s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan altitude stats: %w", err)
+		}
+
+		if bucketKey.Valid {
+			s.BucketKey = bucketKey.String
+		}
+		if areaKey.Valid {
+			s.AreaKey = areaKey.String
+		}
+
+		results = append(results, s)
+	}
+
+	return results, nil
+}
