@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/jengzang/records-backend-go/internal/analysis"
 )
@@ -35,17 +36,18 @@ func (a *DensityStructureAnalyzer) Analyze(ctx context.Context, taskID int64, mo
 
 	// Clear existing zones (full recompute)
 	if mode == "full" {
-		if _, err := a.DB.ExecContext(ctx, "DELETE FROM density_zones"); err != nil {
-			return fmt.Errorf("failed to clear density_zones: %w", err)
+		if _, err := a.DB.ExecContext(ctx, "DELETE FROM spatial_density_grid_stats"); err != nil {
+			return fmt.Errorf("failed to clear spatial_density_grid_stats: %w", err)
 		}
 		log.Printf("[DensityStructureAnalyzer] Cleared existing density zones")
 	}
 
 	// Query grid cells with statistics
+	// Note: grid_cells doesn't have admin columns, we'll leave them empty
 	query := `
 		SELECT
 			grid_id, visit_count, point_count, total_duration_s,
-			center_lat, center_lon, province, city, county
+			center_lat, center_lon
 		FROM grid_cells
 		WHERE visit_count > 0
 		ORDER BY visit_count DESC
@@ -62,25 +64,17 @@ func (a *DensityStructureAnalyzer) Analyze(ctx context.Context, taskID int64, mo
 
 	for rows.Next() {
 		var zone DensityZone
-		var province, city, county sql.NullString
 
 		if err := rows.Scan(
 			&zone.GridID, &zone.VisitCount, &zone.PointCount, &zone.TotalDuration,
 			&zone.CenterLat, &zone.CenterLon,
-			&province, &city, &county,
 		); err != nil {
 			return fmt.Errorf("failed to scan grid cell: %w", err)
 		}
 
-		if province.Valid {
-			zone.Province = province.String
-		}
-		if city.Valid {
-			zone.City = city.String
-		}
-		if county.Valid {
-			zone.County = county.String
-		}
+		// Calculate visit_days from grid metadata if available
+		// For now, estimate as visit_count (simplified)
+		zone.VisitDays = int(zone.VisitCount)
 
 		zones = append(zones, zone)
 		allVisitCounts = append(allVisitCounts, zone.VisitCount)
@@ -105,27 +99,35 @@ func (a *DensityStructureAnalyzer) Analyze(ctx context.Context, taskID int64, mo
 		return fmt.Errorf("failed to insert density zones: %w", err)
 	}
 
-	// Count zones by type
-	hotCount := 0
-	warmCount := 0
-	coldCount := 0
+	// Count zones by density level
+	coreCount := 0
+	secondaryCount := 0
+	activeCount := 0
+	peripheralCount := 0
+	rareCount := 0
 	for _, zone := range zones {
-		switch zone.ZoneType {
-		case "HOT":
-			hotCount++
-		case "WARM":
-			warmCount++
-		case "COLD":
-			coldCount++
+		switch zone.DensityLevel {
+		case "core":
+			coreCount++
+		case "secondary":
+			secondaryCount++
+		case "active":
+			activeCount++
+		case "peripheral":
+			peripheralCount++
+		case "rare":
+			rareCount++
 		}
 	}
 
 	// Mark task as completed
 	summary := map[string]interface{}{
-		"total_zones": len(zones),
-		"hot_zones":   hotCount,
-		"warm_zones":  warmCount,
-		"cold_zones":  coldCount,
+		"total_zones":      len(zones),
+		"core_zones":       coreCount,
+		"secondary_zones":  secondaryCount,
+		"active_zones":     activeCount,
+		"peripheral_zones": peripheralCount,
+		"rare_zones":       rareCount,
 	}
 	summaryJSON, _ := json.Marshal(summary)
 
@@ -144,7 +146,8 @@ type DensityZone struct {
 	PointCount    int64
 	VisitCount    int64
 	TotalDuration int64
-	ZoneType      string
+	VisitDays     int
+	DensityLevel  string // 'core', 'secondary', 'active', 'peripheral', 'rare'
 	CenterLat     float64
 	CenterLon     float64
 	Province      string
@@ -152,49 +155,81 @@ type DensityZone struct {
 	County        string
 }
 
-// calculateDensityScores calculates density scores and classifies zones
+// calculateDensityScores calculates density scores using weighted formula and classifies zones
 func (a *DensityStructureAnalyzer) calculateDensityScores(zones []DensityZone, allVisitCounts []int64) {
-	if len(allVisitCounts) == 0 {
+	if len(zones) == 0 {
 		return
 	}
 
-	// Calculate percentiles for classification
-	// Sort visit counts to find percentiles
-	sortedCounts := make([]int64, len(allVisitCounts))
-	copy(sortedCounts, allVisitCounts)
+	// Calculate weighted density scores for all zones
+	scores := make([]float64, len(zones))
+	for i := range zones {
+		scores[i] = calculateWeightedDensityScore(
+			zones[i].TotalDuration,
+			zones[i].VisitDays,
+			int(zones[i].VisitCount),
+		)
+		zones[i].DensityScore = scores[i]
+	}
+
+	// Sort scores to find percentiles
+	sortedScores := make([]float64, len(scores))
+	copy(sortedScores, scores)
 
 	// Simple bubble sort (sufficient for this use case)
-	for i := 0; i < len(sortedCounts); i++ {
-		for j := i + 1; j < len(sortedCounts); j++ {
-			if sortedCounts[i] < sortedCounts[j] {
-				sortedCounts[i], sortedCounts[j] = sortedCounts[j], sortedCounts[i]
+	for i := 0; i < len(sortedScores); i++ {
+		for j := i + 1; j < len(sortedScores); j++ {
+			if sortedScores[i] < sortedScores[j] {
+				sortedScores[i], sortedScores[j] = sortedScores[j], sortedScores[i]
 			}
 		}
 	}
 
-	// Find thresholds (top 10% = HOT, 10-30% = WARM, rest = COLD)
-	hotThreshold := sortedCounts[len(sortedCounts)/10]
-	warmThreshold := sortedCounts[len(sortedCounts)*3/10]
+	// Calculate percentile thresholds
+	// p90 (top 10%), p70 (top 30%), p30 (top 70%), p10 (top 90%)
+	p90 := sortedScores[len(sortedScores)/10]
+	p70 := sortedScores[len(sortedScores)*3/10]
+	p30 := sortedScores[len(sortedScores)*7/10]
+	p10 := sortedScores[len(sortedScores)*9/10]
 
-	// Calculate max visit count for normalization
-	maxVisitCount := sortedCounts[0]
-
-	// Assign density scores and zone types
+	// Classify density levels
 	for i := range zones {
-		// Normalize density score (0-1)
-		if maxVisitCount > 0 {
-			zones[i].DensityScore = float64(zones[i].VisitCount) / float64(maxVisitCount)
-		}
-
-		// Classify zone type
-		if zones[i].VisitCount >= hotThreshold {
-			zones[i].ZoneType = "HOT"
-		} else if zones[i].VisitCount >= warmThreshold {
-			zones[i].ZoneType = "WARM"
-		} else {
-			zones[i].ZoneType = "COLD"
-		}
+		zones[i].DensityLevel = classifyDensityLevel(zones[i].DensityScore, p90, p70, p30, p10)
 	}
+}
+
+// calculateWeightedDensityScore calculates weighted density score
+// Formula: a*log(1+duration_hours) + b*log(1+days) + c*log(1+count)
+func calculateWeightedDensityScore(stayDuration int64, visitDays int, stayCount int) float64 {
+	a := 0.5 // duration weight
+	b := 0.3 // days weight
+	c := 0.2 // count weight
+
+	durationHours := float64(stayDuration) / 3600.0
+	score := a*log1p(durationHours) + b*log1p(float64(visitDays)) + c*log1p(float64(stayCount))
+	return score
+}
+
+// classifyDensityLevel classifies density level based on percentiles
+func classifyDensityLevel(score, p90, p70, p30, p10 float64) string {
+	if score >= p90 {
+		return "core" // Top 10%
+	} else if score >= p70 {
+		return "secondary" // 10-30%
+	} else if score >= p30 {
+		return "active" // 30-70%
+	} else if score >= p10 {
+		return "peripheral" // 70-90%
+	}
+	return "rare" // Bottom 10%
+}
+
+// log1p calculates log(1 + x) safely
+func log1p(x float64) float64 {
+	if x <= 0 {
+		return 0
+	}
+	return math.Log(1 + x)
 }
 
 // insertDensityZones inserts density zones into the database
@@ -210,12 +245,20 @@ func (a *DensityStructureAnalyzer) insertDensityZones(ctx context.Context, zones
 	defer tx.Rollback()
 
 	insertQuery := `
-		INSERT INTO density_zones (
-			grid_id, density_score, point_count, visit_count,
-			total_duration_s, zone_type,
+		INSERT INTO spatial_density_grid_stats (
+			bucket_type, bucket_key, grid_id,
 			center_lat, center_lon, province, city, county,
-			algo_version, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1', CURRENT_TIMESTAMP)
+			density_score, density_level,
+			stay_duration_s, stay_count, visit_days,
+			algo_version
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1')
+		ON CONFLICT(bucket_type, bucket_key, grid_id) DO UPDATE SET
+			density_score = excluded.density_score,
+			density_level = excluded.density_level,
+			stay_duration_s = excluded.stay_duration_s,
+			stay_count = excluded.stay_count,
+			visit_days = excluded.visit_days,
+			updated_at = CAST(strftime('%s', 'now') AS INTEGER)
 	`
 
 	stmt, err := tx.PrepareContext(ctx, insertQuery)
@@ -226,9 +269,10 @@ func (a *DensityStructureAnalyzer) insertDensityZones(ctx context.Context, zones
 
 	for _, zone := range zones {
 		_, err := stmt.ExecContext(ctx,
-			zone.GridID, zone.DensityScore, zone.PointCount, zone.VisitCount,
-			zone.TotalDuration, zone.ZoneType,
+			"all", nil, zone.GridID,
 			zone.CenterLat, zone.CenterLon, zone.Province, zone.City, zone.County,
+			zone.DensityScore, zone.DensityLevel,
+			zone.TotalDuration, zone.VisitCount, zone.VisitDays,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert density zone: %w", err)

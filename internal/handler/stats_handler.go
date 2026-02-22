@@ -538,3 +538,60 @@ func (h *StatsHandler) GetDeepEngagementAreas(c *gin.Context) {
 
 	response.Success(c, results)
 }
+
+// GetDensityGrids handles GET /api/v1/stats/density
+func (h *StatsHandler) GetDensityGrids(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	densityLevel := c.Query("level")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+
+	results, err := h.statsService.GetDensityGrids(bucketType, densityLevel, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetCoreAreas handles GET /api/v1/stats/density/core
+func (h *StatsHandler) GetCoreAreas(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+
+	results, err := h.statsService.GetCoreAreas(bucketType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetRareVisits handles GET /api/v1/stats/density/rare
+func (h *StatsHandler) GetRareVisits(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+
+	results, err := h.statsService.GetRareVisits(bucketType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}
+
+// GetDensityClusters handles GET /api/v1/stats/density/clusters
+func (h *StatsHandler) GetDensityClusters(c *gin.Context) {
+	bucketType := c.DefaultQuery("bucket", "all")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	results, err := h.statsService.GetDensityClusters(bucketType, limit)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, results)
+}

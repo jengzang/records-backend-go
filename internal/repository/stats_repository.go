@@ -1227,3 +1227,179 @@ func (r *StatsRepository) GetDeepEngagementAreas(
 
 	return results, nil
 }
+
+// GetDensityGrids retrieves density grids with filters
+func (r *StatsRepository) GetDensityGrids(
+	bucketType string,
+	densityLevel string,
+	limit int,
+) ([]models.SpatialDensityGrid, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, grid_id,
+			center_lat, center_lon, province, city, county,
+			density_score, density_level,
+			stay_duration_s, stay_count, visit_days,
+			cluster_id, cluster_area_km2,
+			algo_version, created_at, updated_at
+		FROM spatial_density_grid_stats
+		WHERE 1=1
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+
+	if densityLevel != "" {
+		query += " AND density_level = ?"
+		args = append(args, densityLevel)
+	}
+
+	query += " ORDER BY density_score DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query density grids: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.SpatialDensityGrid
+	for rows.Next() {
+		var g models.SpatialDensityGrid
+		var bucketKey, province, city, county sql.NullString
+		var clusterID sql.NullInt64
+		var clusterAreaKm2 sql.NullFloat64
+
+		err := rows.Scan(
+			&g.ID, &g.BucketType, &bucketKey, &g.GridID,
+			&g.CenterLat, &g.CenterLon, &province, &city, &county,
+			&g.DensityScore, &g.DensityLevel,
+			&g.StayDurationS, &g.StayCount, &g.VisitDays,
+			&clusterID, &clusterAreaKm2,
+			&g.AlgoVersion, &g.CreatedAt, &g.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan density grid: %w", err)
+		}
+
+		if bucketKey.Valid {
+			g.BucketKey = bucketKey.String
+		}
+		if province.Valid {
+			g.Province = province.String
+		}
+		if city.Valid {
+			g.City = city.String
+		}
+		if county.Valid {
+			g.County = county.String
+		}
+		if clusterID.Valid {
+			id := int(clusterID.Int64)
+			g.ClusterID = &id
+		}
+		if clusterAreaKm2.Valid {
+			g.ClusterAreaKm2 = &clusterAreaKm2.Float64
+		}
+
+		results = append(results, g)
+	}
+
+	return results, nil
+}
+
+// GetCoreAreas retrieves core density areas
+func (r *StatsRepository) GetCoreAreas(
+	bucketType string,
+	limit int,
+) ([]models.SpatialDensityGrid, error) {
+	return r.GetDensityGrids(bucketType, "core", limit)
+}
+
+// GetRareVisits retrieves rare visit locations
+func (r *StatsRepository) GetRareVisits(
+	bucketType string,
+	limit int,
+) ([]models.SpatialDensityGrid, error) {
+	return r.GetDensityGrids(bucketType, "rare", limit)
+}
+
+// GetDensityClusters retrieves density clusters (if implemented)
+func (r *StatsRepository) GetDensityClusters(
+	bucketType string,
+	limit int,
+) ([]models.SpatialDensityGrid, error) {
+	query := `
+		SELECT
+			id, bucket_type, bucket_key, grid_id,
+			center_lat, center_lon, province, city, county,
+			density_score, density_level,
+			stay_duration_s, stay_count, visit_days,
+			cluster_id, cluster_area_km2,
+			algo_version, created_at, updated_at
+		FROM spatial_density_grid_stats
+		WHERE cluster_id IS NOT NULL
+	`
+	args := []interface{}{}
+
+	if bucketType != "" {
+		query += " AND bucket_type = ?"
+		args = append(args, bucketType)
+	}
+
+	query += " ORDER BY cluster_area_km2 DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query density clusters: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.SpatialDensityGrid
+	for rows.Next() {
+		var g models.SpatialDensityGrid
+		var bucketKey, province, city, county sql.NullString
+		var clusterID sql.NullInt64
+		var clusterAreaKm2 sql.NullFloat64
+
+		err := rows.Scan(
+			&g.ID, &g.BucketType, &bucketKey, &g.GridID,
+			&g.CenterLat, &g.CenterLon, &province, &city, &county,
+			&g.DensityScore, &g.DensityLevel,
+			&g.StayDurationS, &g.StayCount, &g.VisitDays,
+			&clusterID, &clusterAreaKm2,
+			&g.AlgoVersion, &g.CreatedAt, &g.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan density cluster: %w", err)
+		}
+
+		if bucketKey.Valid {
+			g.BucketKey = bucketKey.String
+		}
+		if province.Valid {
+			g.Province = province.String
+		}
+		if city.Valid {
+			g.City = city.String
+		}
+		if county.Valid {
+			g.County = county.String
+		}
+		if clusterID.Valid {
+			id := int(clusterID.Int64)
+			g.ClusterID = &id
+		}
+		if clusterAreaKm2.Valid {
+			g.ClusterAreaKm2 = &clusterAreaKm2.Float64
+		}
+
+		results = append(results, g)
+	}
+
+	return results, nil
+}

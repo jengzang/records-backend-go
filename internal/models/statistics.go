@@ -299,3 +299,26 @@ type SpatialUtilization struct {
 	CreatedAt             int64   `json:"created_at" db:"created_at"`
 	UpdatedAt             int64   `json:"updated_at" db:"updated_at"`
 }
+
+// SpatialDensityGrid represents grid-based density analysis results
+type SpatialDensityGrid struct {
+	ID             int64    `json:"id" db:"id"`
+	BucketType     string   `json:"bucket_type" db:"bucket_type"`
+	BucketKey      string   `json:"bucket_key,omitempty" db:"bucket_key"`
+	GridID         string   `json:"grid_id" db:"grid_id"`
+	CenterLat      float64  `json:"center_lat" db:"center_lat"`
+	CenterLon      float64  `json:"center_lon" db:"center_lon"`
+	Province       string   `json:"province,omitempty" db:"province"`
+	City           string   `json:"city,omitempty" db:"city"`
+	County         string   `json:"county,omitempty" db:"county"`
+	DensityScore   float64  `json:"density_score" db:"density_score"`
+	DensityLevel   string   `json:"density_level" db:"density_level"`
+	StayDurationS  int64    `json:"stay_duration_s" db:"stay_duration_s"`
+	StayCount      int      `json:"stay_count" db:"stay_count"`
+	VisitDays      int      `json:"visit_days" db:"visit_days"`
+	ClusterID      *int     `json:"cluster_id,omitempty" db:"cluster_id"`
+	ClusterAreaKm2 *float64 `json:"cluster_area_km2,omitempty" db:"cluster_area_km2"`
+	AlgoVersion    string   `json:"algo_version" db:"algo_version"`
+	CreatedAt      int64    `json:"created_at" db:"created_at"`
+	UpdatedAt      int64    `json:"updated_at" db:"updated_at"`
+}

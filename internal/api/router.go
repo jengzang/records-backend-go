@@ -130,6 +130,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			stats.GET("/spatial-utilization/destinations", statsHandler.GetDestinationAreas)
 			stats.GET("/spatial-utilization/corridors", statsHandler.GetTransitCorridors)
 			stats.GET("/spatial-utilization/deep-engagement", statsHandler.GetDeepEngagementAreas)
+
+			// Density structure endpoints
+			stats.GET("/density", statsHandler.GetDensityGrids)
+			stats.GET("/density/core", statsHandler.GetCoreAreas)
+			stats.GET("/density/rare", statsHandler.GetRareVisits)
+			stats.GET("/density/clusters", statsHandler.GetDensityClusters)
 		}
 
 		// 可视化接口

@@ -205,3 +205,36 @@ func (s *StatsService) GetDeepEngagementAreas(
 ) ([]models.SpatialUtilization, error) {
 	return s.statsRepo.GetDeepEngagementAreas(bucketType, areaType, limit)
 }
+
+// GetDensityGrids retrieves density grids with filters
+func (s *StatsService) GetDensityGrids(
+	bucketType string,
+	densityLevel string,
+	limit int,
+) ([]models.SpatialDensityGrid, error) {
+	return s.statsRepo.GetDensityGrids(bucketType, densityLevel, limit)
+}
+
+// GetCoreAreas retrieves core density areas
+func (s *StatsService) GetCoreAreas(
+	bucketType string,
+	limit int,
+) ([]models.SpatialDensityGrid, error) {
+	return s.statsRepo.GetCoreAreas(bucketType, limit)
+}
+
+// GetRareVisits retrieves rare visit locations
+func (s *StatsService) GetRareVisits(
+	bucketType string,
+	limit int,
+) ([]models.SpatialDensityGrid, error) {
+	return s.statsRepo.GetRareVisits(bucketType, limit)
+}
+
+// GetDensityClusters retrieves density clusters
+func (s *StatsService) GetDensityClusters(
+	bucketType string,
+	limit int,
+) ([]models.SpatialDensityGrid, error) {
+	return s.statsRepo.GetDensityClusters(bucketType, limit)
+}
