@@ -313,3 +313,8 @@ func (s *StatsService) GetHourlyPattern() ([]models.TimeSpaceSlice, error) {
 func (s *StatsService) GetSpatialComplexity() (*models.SpatialComplexity, error) {
 	return s.statsRepo.GetSpatialComplexity()
 }
+
+// GetRoadOverlapSummary retrieves road overlap summary
+func (s *StatsService) GetRoadOverlapSummary() (*models.RoadOverlapSummary, error) {
+	return s.statsRepo.GetRoadOverlapSummary()
+}

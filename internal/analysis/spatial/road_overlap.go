@@ -44,7 +44,7 @@ func (a *RoadOverlapAnalyzer) Analyze(ctx context.Context, taskID int64, mode st
 	// Query segments
 	query := `
 		SELECT
-			id, mode, distance_m, avg_speed_mps, max_speed_mps
+			id, mode, distance_m, avg_speed_kmh, max_speed_kmh
 		FROM segments
 		WHERE mode IN ('CAR', 'BIKE', 'WALK')
 			AND distance_m > 0
@@ -62,13 +62,17 @@ func (a *RoadOverlapAnalyzer) Analyze(ctx context.Context, taskID int64, mode st
 	for rows.Next() {
 		var segmentID int64
 		var mode string
-		var distance, avgSpeed, maxSpeed float64
+		var distance, avgSpeedKmh, maxSpeedKmh float64
 
-		if err := rows.Scan(&segmentID, &mode, &distance, &avgSpeed, &maxSpeed); err != nil {
+		if err := rows.Scan(&segmentID, &mode, &distance, &avgSpeedKmh, &maxSpeedKmh); err != nil {
 			return fmt.Errorf("failed to scan segment: %w", err)
 		}
 
 		totalSegments++
+
+		// Convert km/h to m/s
+		avgSpeed := avgSpeedKmh / 3.6
+		maxSpeed := maxSpeedKmh / 3.6
 
 		// Estimate road overlap based on mode and speed
 		stat := a.estimateRoadOverlap(segmentID, mode, distance, avgSpeed, maxSpeed)

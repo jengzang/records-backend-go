@@ -406,3 +406,32 @@ type SpatialComplexity struct {
 	AlgoVersion          string  `json:"algo_version" db:"algo_version"`
 	CreatedAt            string  `json:"created_at" db:"created_at"`
 }
+
+// RoadOverlapStats represents road overlap statistics
+type RoadOverlapStats struct {
+	ID                int64   `json:"id" db:"id"`
+	SegmentID         int64   `json:"segment_id" db:"segment_id"`
+	OnRoadDistanceM   float64 `json:"on_road_distance_m" db:"on_road_distance_m"`
+	OffRoadDistanceM  float64 `json:"off_road_distance_m" db:"off_road_distance_m"`
+	OverlapRatio      float64 `json:"overlap_ratio" db:"overlap_ratio"`
+	RoadType          string  `json:"road_type" db:"road_type"`
+	Confidence        float64 `json:"confidence" db:"confidence"`
+	AlgoVersion       string  `json:"algo_version" db:"algo_version"`
+	CreatedAt         string  `json:"created_at" db:"created_at"`
+}
+
+// RoadOverlapSummary represents aggregated road overlap statistics
+type RoadOverlapSummary struct {
+	TotalSegments    int     `json:"total_segments"`
+	OnRoadDistanceKm float64 `json:"on_road_distance_km"`
+	OffRoadDistanceKm float64 `json:"off_road_distance_km"`
+	OverlapRatio     float64 `json:"overlap_ratio"`
+	ByRoadType       map[string]RoadTypeStats `json:"by_road_type"`
+}
+
+// RoadTypeStats represents statistics for a specific road type
+type RoadTypeStats struct {
+	SegmentCount int     `json:"segment_count"`
+	DistanceKm   float64 `json:"distance_km"`
+	AvgRatio     float64 `json:"avg_ratio"`
+}

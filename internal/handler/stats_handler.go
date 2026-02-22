@@ -735,3 +735,14 @@ func (h *StatsHandler) GetSpatialComplexity(c *gin.Context) {
 
 	response.Success(c, result)
 }
+
+// GetRoadOverlapSummary handles GET /api/v1/stats/road-overlap
+func (h *StatsHandler) GetRoadOverlapSummary(c *gin.Context) {
+	result, err := h.statsService.GetRoadOverlapSummary()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get road overlap summary", err)
+		return
+	}
+
+	response.Success(c, result)
+}

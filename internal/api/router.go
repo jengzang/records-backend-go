@@ -154,6 +154,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 			// Spatial complexity endpoint
 			stats.GET("/spatial-complexity", statsHandler.GetSpatialComplexity)
+
+			// Road overlap endpoint
+			stats.GET("/road-overlap", statsHandler.GetRoadOverlapSummary)
 		}
 
 		// 可视化接口

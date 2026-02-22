@@ -1906,3 +1906,76 @@ func (r *StatsRepository) GetSpatialComplexity() (*models.SpatialComplexity, err
 
 	return &complexity, nil
 }
+
+// GetRoadOverlapSummary retrieves aggregated road overlap statistics
+func (r *StatsRepository) GetRoadOverlapSummary() (*models.RoadOverlapSummary, error) {
+	// Get overall stats
+	query := `
+		SELECT
+			COUNT(*) as total_segments,
+			SUM(on_road_distance_m) as on_road,
+			SUM(off_road_distance_m) as off_road
+		FROM road_overlap_stats
+	`
+
+	var summary models.RoadOverlapSummary
+	var onRoad, offRoad sql.NullFloat64
+
+	err := r.db.QueryRow(query).Scan(&summary.TotalSegments, &onRoad, &offRoad)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query road overlap summary: %w", err)
+	}
+
+	if onRoad.Valid {
+		summary.OnRoadDistanceKm = onRoad.Float64 / 1000.0
+	}
+	if offRoad.Valid {
+		summary.OffRoadDistanceKm = offRoad.Float64 / 1000.0
+	}
+
+	total := summary.OnRoadDistanceKm + summary.OffRoadDistanceKm
+	if total > 0 {
+		summary.OverlapRatio = summary.OnRoadDistanceKm / total
+	}
+
+	// Get stats by road type
+	typeQuery := `
+		SELECT
+			road_type,
+			COUNT(*) as count,
+			SUM(on_road_distance_m) as distance,
+			AVG(overlap_ratio) as avg_ratio
+		FROM road_overlap_stats
+		GROUP BY road_type
+	`
+
+	rows, err := r.db.Query(typeQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query road type stats: %w", err)
+	}
+	defer rows.Close()
+
+	summary.ByRoadType = make(map[string]models.RoadTypeStats)
+	for rows.Next() {
+		var roadType string
+		var stats models.RoadTypeStats
+		var distance sql.NullFloat64
+
+		err := rows.Scan(&roadType, &stats.SegmentCount, &distance, &stats.AvgRatio)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan road type stats: %w", err)
+		}
+
+		if distance.Valid {
+			stats.DistanceKm = distance.Float64 / 1000.0
+		}
+
+		summary.ByRoadType[roadType] = stats
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return &summary, nil
+}
