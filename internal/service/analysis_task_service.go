@@ -95,7 +95,10 @@ func (s *AnalysisTaskService) startAnalysisWorker(taskID int64, skillName string
 	log.Printf("Starting analysis worker for task %d (skill: %s, type: %s)", taskID, skillName, taskType)
 
 	// Check if skill is implemented in Go
-	if analysis.IsGoNativeSkill(skillName) {
+	isGoNative := analysis.IsGoNativeSkill(skillName)
+	log.Printf("IsGoNativeSkill(%s) = %v", skillName, isGoNative)
+
+	if isGoNative {
 		// Execute in Go (in-process)
 		s.executeGoAnalysis(taskID, skillName, taskType)
 	} else {

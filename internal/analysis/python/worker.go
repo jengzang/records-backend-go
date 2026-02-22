@@ -91,7 +91,6 @@ func init() {
 		{"stay_detection", "stay_detection.py"},
 		{"density_structure_advanced", "density_structure_advanced.py"},
 		{"trip_construction_advanced", "trip_construction_advanced.py"},
-		{"spatial_persona", "spatial_persona.py"},
 		{"admin_view_advanced", "admin_view_advanced.py"},
 	}
 
