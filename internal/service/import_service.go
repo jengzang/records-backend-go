@@ -2,22 +2,21 @@ package service
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/jengzang/records-backend-go/internal/importer"
 	"github.com/jengzang/records-backend-go/internal/models"
 )
 
 type ImportService struct {
-	db                   *sql.DB
-	uploadDir            string
-	pythonScriptPath     string
-	geocodingService     *GeocodingService
-	analysisTaskService  *AnalysisTaskService
+	db                  *sql.DB
+	uploadDir           string
+	geocodingService    *GeocodingService
+	analysisTaskService *AnalysisTaskService
 }
 
 func NewImportService(db *sql.DB) *ImportService {
@@ -30,11 +29,10 @@ func NewImportService(db *sql.DB) *ImportService {
 	os.MkdirAll(uploadDir, 0755)
 
 	return &ImportService{
-		db:                   db,
-		uploadDir:            uploadDir,
-		pythonScriptPath:     "scripts/tracks/import/write2sql.py",
-		geocodingService:     nil, // Will be set via SetGeocodingService
-		analysisTaskService:  nil, // Will be set via SetAnalysisTaskService
+		db:                  db,
+		uploadDir:           uploadDir,
+		geocodingService:    nil, // Will be set via SetGeocodingService
+		analysisTaskService: nil, // Will be set via SetAnalysisTaskService
 	}
 }
 
@@ -163,7 +161,7 @@ func (s *ImportService) UpdateImportTask(task *models.ImportTask) error {
 	return nil
 }
 
-// ExecuteImport executes the Python import script
+// ExecuteImport executes the import using Go importers
 func (s *ImportService) ExecuteImport(taskID int64, filePath string) error {
 	task, err := s.GetImportTask(taskID)
 	if err != nil {
@@ -177,66 +175,27 @@ func (s *ImportService) ExecuteImport(taskID int64, filePath string) error {
 		return err
 	}
 
-	// Build command
-	dbPath := os.Getenv("TRACKS_DB_PATH")
-	if dbPath == "" {
-		dbPath = "data/tracks.db"
+	// Determine file type and use appropriate importer
+	ext := strings.ToLower(filepath.Ext(filePath))
+	var result *importer.ImportResult
+
+	switch ext {
+	case ".csv":
+		csvImporter := importer.NewCSVImporter(s.db)
+		result, err = csvImporter.ImportCSV(filePath, task.Mode, task.Deduplicate)
+	case ".xlsx", ".xls", ".xlsm":
+		excelImporter := importer.NewExcelImporter(s.db)
+		result, err = excelImporter.ImportExcel(filePath, task.Mode, task.Deduplicate)
+	default:
+		err = fmt.Errorf("unsupported file format: %s", ext)
 	}
 
-	deduplicateStr := "false"
-	if task.Deduplicate {
-		deduplicateStr = "true"
-	}
-
-	cmd := exec.Command("python3",
-		s.pythonScriptPath,
-		"--file", filePath,
-		"--db", dbPath,
-		"--table", "一生足迹",
-		"--mode", task.Mode,
-		"--deduplicate", deduplicateStr,
-	)
-
-	// Execute command
-	output, err := cmd.CombinedOutput()
 	if err != nil {
 		task.Status = "failed"
-		errMsg := fmt.Sprintf("Python script error: %s\nOutput: %s", err.Error(), string(output))
+		errMsg := fmt.Sprintf("Import error: %s", err.Error())
 		task.ErrorMessage = &errMsg
 		s.UpdateImportTask(task)
 		return fmt.Errorf("failed to execute import: %w", err)
-	}
-
-	// Parse JSON output from Python script
-	outputStr := string(output)
-	jsonStart := -1
-	for i := len(outputStr) - 1; i >= 0; i-- {
-		if outputStr[i] == '{' {
-			jsonStart = i
-			break
-		}
-	}
-
-	if jsonStart == -1 {
-		task.Status = "failed"
-		errMsg := "Failed to parse Python output"
-		task.ErrorMessage = &errMsg
-		s.UpdateImportTask(task)
-		return fmt.Errorf("no JSON output found")
-	}
-
-	var result struct {
-		TotalRecords     int `json:"total_records"`
-		NewRecords       int `json:"new_records"`
-		DuplicateRecords int `json:"duplicate_records"`
-	}
-
-	if err := json.Unmarshal([]byte(outputStr[jsonStart:]), &result); err != nil {
-		task.Status = "failed"
-		errMsg := fmt.Sprintf("Failed to parse JSON: %s", err.Error())
-		task.ErrorMessage = &errMsg
-		s.UpdateImportTask(task)
-		return fmt.Errorf("failed to parse JSON output: %w", err)
 	}
 
 	// Update task with results
