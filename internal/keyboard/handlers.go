@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"os/exec"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"records-backend-go/internal/keyboard/analysis"
 	_ "modernc.org/sqlite"
 )
 
@@ -430,32 +430,40 @@ func (h *Handler) GetTimeHeatmap(c *gin.Context) {
 
 // GetTemporalAnalysis returns temporal analysis (day-of-week, monthly patterns)
 func (h *Handler) GetTemporalAnalysis(c *gin.Context) {
-	analysisType := c.DefaultQuery("type", "daily") // hourly, daily, monthly, weekday_vs_weekend
+	analysisType := c.DefaultQuery("type", "daily") // daily, monthly, weekday_vs_weekend
 	startDate := c.Query("start")
 	endDate := c.Query("end")
 
-	// Call Python worker
-	args := []string{
-		"python3",
-		"scripts/keyboard/workers/temporal_analysis.py",
-		"data/keyboard/kmcounter.db",
-		analysisType,
-	}
+	analyzer := analysis.NewTemporalAnalyzer(h.db)
 
-	if startDate != "" {
-		args = append(args, startDate)
-	}
-	if endDate != "" {
-		args = append(args, endDate)
-	}
+	switch analysisType {
+	case "daily":
+		result, err := analyzer.AnalyzeDayOfWeek(startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 
-	result, err := executePythonWorker(args)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	case "monthly":
+		result, err := analyzer.AnalyzeMonthlyPatterns(startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 
-	c.Data(http.StatusOK, "application/json", result)
+	case "weekday_vs_weekend":
+		result, err := analyzer.AnalyzeWeekdayVsWeekend(startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid analysis type"})
+	}
 }
 
 // GetCategoryAnalysis returns key category distribution and top keys
@@ -464,27 +472,36 @@ func (h *Handler) GetCategoryAnalysis(c *gin.Context) {
 	startDate := c.Query("start")
 	endDate := c.Query("end")
 
-	args := []string{
-		"python3",
-		"scripts/keyboard/workers/key_category_analysis.py",
-		"data/keyboard/kmcounter.db",
-		analysisType,
-	}
+	analyzer := analysis.NewCategoryAnalyzer(h.db)
 
-	if startDate != "" {
-		args = append(args, startDate)
-	}
-	if endDate != "" {
-		args = append(args, endDate)
-	}
+	switch analysisType {
+	case "distribution":
+		result, err := analyzer.AnalyzeCategoryDistribution(startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 
-	result, err := executePythonWorker(args)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	case "top_keys":
+		result, err := analyzer.AnalyzeAllTopKeys(5, startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 
-	c.Data(http.StatusOK, "application/json", result)
+	case "modifiers":
+		result, err := analyzer.AnalyzeModifierUsage(startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid analysis type"})
+	}
 }
 
 // GetTypingBehavior returns typing behavior metrics
@@ -493,27 +510,36 @@ func (h *Handler) GetTypingBehavior(c *gin.Context) {
 	startDate := c.Query("start")
 	endDate := c.Query("end")
 
-	args := []string{
-		"python3",
-		"scripts/keyboard/workers/typing_behavior.py",
-		"data/keyboard/kmcounter.db",
-		analysisType,
-	}
+	analyzer := analysis.NewTypingBehaviorAnalyzer(h.db)
 
-	if startDate != "" {
-		args = append(args, startDate)
-	}
-	if endDate != "" {
-		args = append(args, endDate)
-	}
+	switch analysisType {
+	case "metrics":
+		result, err := analyzer.AnalyzeTypingMetrics(startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 
-	result, err := executePythonWorker(args)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	case "special_keys":
+		result, err := analyzer.AnalyzeSpecialKeyUsage(20, startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 
-	c.Data(http.StatusOK, "application/json", result)
+	case "letter_frequency":
+		result, err := analyzer.AnalyzeLetterFrequency(startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid analysis type"})
+	}
 }
 
 // GetProductivityMetrics returns productivity metrics
@@ -522,27 +548,36 @@ func (h *Handler) GetProductivityMetrics(c *gin.Context) {
 	startDate := c.Query("start")
 	endDate := c.Query("end")
 
-	args := []string{
-		"python3",
-		"scripts/keyboard/workers/productivity_metrics.py",
-		"data/keyboard/kmcounter.db",
-		analysisType,
-	}
+	analyzer := analysis.NewProductivityAnalyzer(h.db)
 
-	if startDate != "" {
-		args = append(args, startDate)
-	}
-	if endDate != "" {
-		args = append(args, endDate)
-	}
+	switch analysisType {
+	case "activity":
+		result, err := analyzer.AnalyzeActivityMetrics(100, startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 
-	result, err := executePythonWorker(args)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	case "intensity":
+		result, err := analyzer.AnalyzeTypingIntensity(startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 
-	c.Data(http.StatusOK, "application/json", result)
+	case "peak_days":
+		result, err := analyzer.AnalyzePeakDays(10, startDate, endDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid analysis type"})
+	}
 }
 
 // GetDetailedKeyboardHeatmap returns detailed keyboard heatmap with statistics
@@ -640,14 +675,4 @@ func (h *Handler) GetDetailedKeyboardHeatmap(c *gin.Context) {
 		"data":  heatmapData,
 		"count": len(heatmapData),
 	})
-}
-
-// executePythonWorker executes a Python worker script and returns the JSON output
-func executePythonWorker(args []string) ([]byte, error) {
-	cmd := exec.Command(args[0], args[1:]...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute worker: %w, output: %s", err, string(output))
-	}
-	return output, nil
 }
