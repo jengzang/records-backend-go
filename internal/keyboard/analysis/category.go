@@ -43,11 +43,9 @@ type ModifierUsage struct {
 func (ca *CategoryAnalyzer) AnalyzeCategoryDistribution(startDate, endDate string) ([]CategoryDistribution, error) {
 	query := `
 		SELECT
-			COALESCE(m.key_category, 'unknown') as category,
-			SUM(s.count) as total_count,
-			COUNT(DISTINCT s.scan_code) as unique_keys
+			s.scan_code,
+			SUM(s.count) as total_count
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -61,7 +59,7 @@ func (ca *CategoryAnalyzer) AnalyzeCategoryDistribution(startDate, endDate strin
 		args = append(args, endDate)
 	}
 
-	query += " GROUP BY m.key_category ORDER BY total_count DESC"
+	query += " GROUP BY s.scan_code ORDER BY total_count DESC"
 
 	rows, err := ca.db.Query(query, args...)
 	if err != nil {
@@ -69,23 +67,49 @@ func (ca *CategoryAnalyzer) AnalyzeCategoryDistribution(startDate, endDate strin
 	}
 	defer rows.Close()
 
-	// First pass: collect data and calculate total
-	var distributions []CategoryDistribution
+	// Collect data and group by category using in-memory mapping
+	categoryMap := make(map[string]*CategoryDistribution)
 	var totalKeystrokes int64
 
 	for rows.Next() {
-		var dist CategoryDistribution
-		if err := rows.Scan(&dist.Category, &dist.Count, &dist.UniqueKeys); err != nil {
+		var scancode int
+		var count int64
+
+		if err := rows.Scan(&scancode, &count); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		distributions = append(distributions, dist)
-		totalKeystrokes += dist.Count
+
+		// Get category from in-memory mapping
+		category := GetKeyCategory(scancode)
+
+		if _, exists := categoryMap[category]; !exists {
+			categoryMap[category] = &CategoryDistribution{
+				Category:   category,
+				Count:      0,
+				UniqueKeys: 0,
+			}
+		}
+
+		categoryMap[category].Count += count
+		categoryMap[category].UniqueKeys++
+		totalKeystrokes += count
 	}
 
-	// Second pass: calculate percentages
-	for i := range distributions {
+	// Convert map to slice and calculate percentages
+	var distributions []CategoryDistribution
+	for _, dist := range categoryMap {
 		if totalKeystrokes > 0 {
-			distributions[i].Percentage = float64(distributions[i].Count) / float64(totalKeystrokes) * 100
+			dist.Percentage = float64(dist.Count) / float64(totalKeystrokes) * 100
+		}
+		distributions = append(distributions, *dist)
+	}
+
+	// Sort by count descending
+	for i := 0; i < len(distributions)-1; i++ {
+		for j := i + 1; j < len(distributions); j++ {
+			if distributions[j].Count > distributions[i].Count {
+				distributions[i], distributions[j] = distributions[j], distributions[i]
+			}
 		}
 	}
 
@@ -97,14 +121,11 @@ func (ca *CategoryAnalyzer) AnalyzeTopKeysByCategory(category string, limit int,
 	query := `
 		SELECT
 			s.scan_code,
-			m.key_name,
-			m.key_category,
 			SUM(s.count) as total_count
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
-		WHERE m.key_category = ?
+		WHERE 1=1
 	`
-	args := []interface{}{category}
+	args := []interface{}{}
 
 	if startDate != "" {
 		query += " AND s.date >= ?"
@@ -115,8 +136,7 @@ func (ca *CategoryAnalyzer) AnalyzeTopKeysByCategory(category string, limit int,
 		args = append(args, endDate)
 	}
 
-	query += " GROUP BY s.scan_code, m.key_name, m.key_category ORDER BY total_count DESC LIMIT ?"
-	args = append(args, limit)
+	query += " GROUP BY s.scan_code ORDER BY total_count DESC"
 
 	rows, err := ca.db.Query(query, args...)
 	if err != nil {
@@ -126,11 +146,30 @@ func (ca *CategoryAnalyzer) AnalyzeTopKeysByCategory(category string, limit int,
 
 	var topKeys []TopKey
 	for rows.Next() {
-		var key TopKey
-		if err := rows.Scan(&key.Scancode, &key.KeyName, &key.Category, &key.Count); err != nil {
+		var scancode int
+		var count int64
+
+		if err := rows.Scan(&scancode, &count); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		topKeys = append(topKeys, key)
+
+		// Get key info from in-memory mapping
+		keyCategory := GetKeyCategory(scancode)
+
+		// Filter by category
+		if keyCategory == category {
+			topKeys = append(topKeys, TopKey{
+				Scancode: scancode,
+				KeyName:  GetKeyName(scancode),
+				Category: keyCategory,
+				Count:    count,
+			})
+
+			// Stop when we reach the limit
+			if len(topKeys) >= limit {
+				break
+			}
+		}
 	}
 
 	return topKeys, nil
@@ -156,11 +195,10 @@ func (ca *CategoryAnalyzer) AnalyzeAllTopKeys(limit int, startDate, endDate stri
 func (ca *CategoryAnalyzer) AnalyzeModifierUsage(startDate, endDate string) (*ModifierUsage, error) {
 	query := `
 		SELECT
-			m.key_name,
+			s.scan_code,
 			SUM(s.count) as total_count
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
-		WHERE m.key_category = 'modifier'
+		WHERE 1=1
 	`
 	args := []interface{}{}
 
@@ -173,7 +211,7 @@ func (ca *CategoryAnalyzer) AnalyzeModifierUsage(startDate, endDate string) (*Mo
 		args = append(args, endDate)
 	}
 
-	query += " GROUP BY m.key_name ORDER BY total_count DESC"
+	query += " GROUP BY s.scan_code ORDER BY total_count DESC"
 
 	rows, err := ca.db.Query(query, args...)
 	if err != nil {
@@ -184,11 +222,20 @@ func (ca *CategoryAnalyzer) AnalyzeModifierUsage(startDate, endDate string) (*Mo
 	usage := &ModifierUsage{}
 
 	for rows.Next() {
-		var keyName string
+		var scancode int
 		var count int64
 
-		if err := rows.Scan(&keyName, &count); err != nil {
+		if err := rows.Scan(&scancode, &count); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		// Get key info from in-memory mapping
+		keyName := GetKeyName(scancode)
+		keyCategory := GetKeyCategory(scancode)
+
+		// Only process modifier keys
+		if keyCategory != "modifier" {
+			continue
 		}
 
 		// Aggregate by modifier type

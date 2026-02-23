@@ -1,32 +1,42 @@
 package keyboard
 
-import (
-	"time"
-)
-
-// DailyStat represents daily keyboard/mouse usage statistics
-type DailyStat struct {
-	ID             int64     `json:"id"`
-	Date           string    `json:"date"`
-	Keystrokes     int       `json:"keystrokes"`
-	LeftClicks     int       `json:"leftClicks"`
-	RightClicks    int       `json:"rightClicks"`
-	MiddleClicks   int       `json:"middleClicks"`
-	ExtraClicks    int       `json:"extraClicks"`
-	WheelScrolls   int       `json:"wheelScrolls"`
-	HWheelScrolls  int       `json:"hWheelScrolls"`
-	MouseDistanceM float64   `json:"mouseDistanceM"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+// KeyboardData represents raw keyboard data from keyboard_data table
+type KeyboardData struct {
+	Date       string `json:"date"`
+	Keystrokes int64  `json:"keystrokes"`
 }
 
-// ScancodeStat represents per-scancode daily statistics
+// MouseData represents raw mouse data from mouse_data table
+type MouseData struct {
+	Date          string  `json:"date"`
+	LeftClicks    int64   `json:"leftClicks"`    // lbcount
+	RightClicks   int64   `json:"rightClicks"`   // rbcount
+	MiddleClicks  int64   `json:"middleClicks"`  // mbcount
+	ExtraClicks   int64   `json:"extraClicks"`   // xbcount
+	WheelScrolls  int64   `json:"wheelScrolls"`  // wheel
+	HWheelScrolls int64   `json:"hWheelScrolls"` // hwheel
+	MouseDistance float64 `json:"mouseDistance"` // move
+}
+
+// DailyStat represents combined daily keyboard/mouse usage statistics (from JOIN)
+type DailyStat struct {
+	Date           string  `json:"date"`
+	Keystrokes     int64   `json:"keystrokes"`
+	LeftClicks     int64   `json:"leftClicks"`
+	RightClicks    int64   `json:"rightClicks"`
+	MiddleClicks   int64   `json:"middleClicks"`
+	ExtraClicks    int64   `json:"extraClicks"`
+	WheelScrolls   int64   `json:"wheelScrolls"`
+	HWheelScrolls  int64   `json:"hWheelScrolls"`
+	MouseDistanceM float64 `json:"mouseDistanceM"`
+	TotalClicks    int64   `json:"totalClicks"` // Computed field
+}
+
+// ScancodeStat represents per-scancode daily statistics from scan_codes table
 type ScancodeStat struct {
-	ID        int64     `json:"id"`
-	Date      string    `json:"date"`
-	Scancode  int       `json:"scancode"`
-	Count     int       `json:"count"`
-	CreatedAt time.Time `json:"createdAt"`
+	Date     string `json:"date"`
+	ScanCode int    `json:"scanCode"` // Column name is scan_code in database
+	Count    int64  `json:"count"`
 }
 
 // ScancodeMapping represents scancode to key name mapping

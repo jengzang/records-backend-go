@@ -74,11 +74,10 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeTypingMetrics(startDate, endDate strin
 	// Get specific key counts
 	keyQuery := `
 		SELECT
-			m.key_name,
+			s.scan_code,
 			SUM(s.count) as total_count
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
-		WHERE m.key_name IN ('Backspace', 'Enter', 'Space', 'Delete')
+		WHERE 1=1
 	`
 	keyArgs := []interface{}{}
 
@@ -91,7 +90,7 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeTypingMetrics(startDate, endDate strin
 		keyArgs = append(keyArgs, endDate)
 	}
 
-	keyQuery += " GROUP BY m.key_name"
+	keyQuery += " GROUP BY s.scan_code"
 
 	rows, err := tba.db.Query(keyQuery, keyArgs...)
 	if err != nil {
@@ -100,12 +99,15 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeTypingMetrics(startDate, endDate strin
 	defer rows.Close()
 
 	for rows.Next() {
-		var keyName string
+		var scancode int
 		var count int64
 
-		if err := rows.Scan(&keyName, &count); err != nil {
+		if err := rows.Scan(&scancode, &count); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
+
+		// Get key name from in-memory mapping
+		keyName := GetKeyName(scancode)
 
 		switch keyName {
 		case "Backspace":
@@ -146,11 +148,10 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeTypingMetrics(startDate, endDate strin
 func (tba *TypingBehaviorAnalyzer) AnalyzeSpecialKeyUsage(limit int, startDate, endDate string) ([]SpecialKeyUsage, error) {
 	query := `
 		SELECT
-			m.key_name,
+			s.scan_code,
 			SUM(s.count) as total_count
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
-		WHERE m.key_category = 'special'
+		WHERE 1=1
 	`
 	args := []interface{}{}
 
@@ -163,8 +164,7 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeSpecialKeyUsage(limit int, startDate, 
 		args = append(args, endDate)
 	}
 
-	query += " GROUP BY m.key_name ORDER BY total_count DESC LIMIT ?"
-	args = append(args, limit)
+	query += " GROUP BY s.scan_code ORDER BY total_count DESC"
 
 	rows, err := tba.db.Query(query, args...)
 	if err != nil {
@@ -174,11 +174,28 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeSpecialKeyUsage(limit int, startDate, 
 
 	var result []SpecialKeyUsage
 	for rows.Next() {
-		var usage SpecialKeyUsage
-		if err := rows.Scan(&usage.KeyName, &usage.Count); err != nil {
+		var scancode int
+		var count int64
+
+		if err := rows.Scan(&scancode, &count); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		result = append(result, usage)
+
+		// Get key info from in-memory mapping
+		keyCategory := GetKeyCategory(scancode)
+
+		// Only include special keys
+		if keyCategory == "special" {
+			result = append(result, SpecialKeyUsage{
+				KeyName: GetKeyName(scancode),
+				Count:   count,
+			})
+
+			// Stop when we reach the limit
+			if len(result) >= limit {
+				break
+			}
+		}
 	}
 
 	return result, nil
@@ -188,11 +205,10 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeSpecialKeyUsage(limit int, startDate, 
 func (tba *TypingBehaviorAnalyzer) AnalyzeLetterFrequency(startDate, endDate string) ([]LetterFrequency, error) {
 	query := `
 		SELECT
-			m.key_name,
+			s.scan_code,
 			SUM(s.count) as total_count
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
-		WHERE m.key_category = 'letter'
+		WHERE 1=1
 	`
 	args := []interface{}{}
 
@@ -205,7 +221,7 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeLetterFrequency(startDate, endDate str
 		args = append(args, endDate)
 	}
 
-	query += " GROUP BY m.key_name ORDER BY total_count DESC"
+	query += " GROUP BY s.scan_code ORDER BY total_count DESC"
 
 	rows, err := tba.db.Query(query, args...)
 	if err != nil {
@@ -213,17 +229,29 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeLetterFrequency(startDate, endDate str
 	}
 	defer rows.Close()
 
-	// First pass: collect data and calculate total
+	// First pass: collect letter data and calculate total
 	var frequencies []LetterFrequency
 	var totalLetters int64
 
 	for rows.Next() {
-		var freq LetterFrequency
-		if err := rows.Scan(&freq.Letter, &freq.Count); err != nil {
+		var scancode int
+		var count int64
+
+		if err := rows.Scan(&scancode, &count); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		frequencies = append(frequencies, freq)
-		totalLetters += freq.Count
+
+		// Get key info from in-memory mapping
+		keyCategory := GetKeyCategory(scancode)
+
+		// Only include letters
+		if keyCategory == "letter" {
+			frequencies = append(frequencies, LetterFrequency{
+				Letter: GetKeyName(scancode),
+				Count:  count,
+			})
+			totalLetters += count
+		}
 	}
 
 	// Second pass: calculate percentages

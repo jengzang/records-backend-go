@@ -132,9 +132,8 @@ func (h *Handler) GetScancodeStats(c *gin.Context) {
 	}
 
 	query := `
-		SELECT s.id, s.date, s.scan_code, s.count, COALESCE(m.key_name, 'Unknown')
+		SELECT s.date, s.scan_code, s.count
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE s.date = ?
 		ORDER BY s.count DESC
 	`
@@ -147,21 +146,24 @@ func (h *Handler) GetScancodeStats(c *gin.Context) {
 	defer rows.Close()
 
 	type ScancodeStatWithName struct {
-		ScancodeStat
-		KeyName string `json:"keyName"`
+		Date     string `json:"date"`
+		ScanCode int    `json:"scanCode"`
+		Count    int64  `json:"count"`
+		KeyName  string `json:"keyName"`
 	}
 
 	var stats []ScancodeStatWithName
 	for rows.Next() {
 		var stat ScancodeStatWithName
 		err := rows.Scan(
-			&stat.ID, &stat.Date, &stat.Scancode, &stat.Count,
-			&stat.KeyName,
+			&stat.Date, &stat.ScanCode, &stat.Count,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		// Get key name from in-memory mapping
+		stat.KeyName = GetKeyName(stat.ScanCode)
 		stats = append(stats, stat)
 	}
 
@@ -176,9 +178,8 @@ func (h *Handler) GetTopKeys(c *gin.Context) {
 	limit := c.DefaultQuery("limit", "20")
 
 	query := `
-		SELECT s.scan_code, COALESCE(m.key_name, 'Unknown'), SUM(s.count) as total
+		SELECT s.scan_code, SUM(s.count) as total
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		GROUP BY s.scan_code
 		ORDER BY total DESC
 		LIMIT ?
@@ -202,14 +203,21 @@ func (h *Handler) GetTopKeys(c *gin.Context) {
 
 	var topKeys []TopKey
 	for rows.Next() {
-		var key TopKey
-		err := rows.Scan(&key.Scancode, &key.KeyName, &key.Count)
+		var scancode int
+		var count int64
+		err := rows.Scan(&scancode, &count)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		key.Percentage = float64(key.Count) / float64(totalKeystrokes) * 100
-		topKeys = append(topKeys, key)
+
+		// Get key name from in-memory mapping
+		topKeys = append(topKeys, TopKey{
+			Scancode:   scancode,
+			KeyName:    GetKeyName(scancode),
+			Count:      count,
+			Percentage: float64(count) / float64(totalKeystrokes) * 100,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -381,9 +389,8 @@ func (h *Handler) GetKeyboardHeatmap(c *gin.Context) {
 	endDate := c.Query("end")
 
 	query := `
-		SELECT s.scan_code, COALESCE(m.key_name, 'Unknown'), COALESCE(m.key_category, 'unknown'), SUM(s.count) as total
+		SELECT s.scan_code, SUM(s.count) as total
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -415,13 +422,21 @@ func (h *Handler) GetKeyboardHeatmap(c *gin.Context) {
 
 	var heatmapData []KeyHeatmapData
 	for rows.Next() {
-		var data KeyHeatmapData
-		err := rows.Scan(&data.Scancode, &data.KeyName, &data.KeyCategory, &data.Count)
+		var scancode int
+		var count int64
+		err := rows.Scan(&scancode, &count)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		heatmapData = append(heatmapData, data)
+
+		// Get key info from in-memory mapping
+		heatmapData = append(heatmapData, KeyHeatmapData{
+			Scancode:    scancode,
+			KeyName:     GetKeyName(scancode),
+			KeyCategory: GetKeyCategory(scancode),
+			Count:       count,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -600,15 +615,12 @@ func (h *Handler) GetDetailedKeyboardHeatmap(c *gin.Context) {
 	query := `
 		SELECT
 			s.scan_code,
-			COALESCE(m.key_name, 'Unknown'),
-			COALESCE(m.key_category, 'unknown'),
 			SUM(s.count) as total_count,
 			MAX(s.count) as peak_count,
 			(SELECT date FROM scan_codes WHERE scan_code = s.scan_code ORDER BY count DESC LIMIT 1) as peak_date,
 			AVG(s.count) as avg_count_per_day,
 			COUNT(DISTINCT s.date) as day_count
 		FROM scan_codes s
-		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -663,24 +675,37 @@ func (h *Handler) GetDetailedKeyboardHeatmap(c *gin.Context) {
 
 	var heatmapData []DetailedKeyHeatmap
 	for rows.Next() {
-		var data DetailedKeyHeatmap
+		var scancode int
+		var totalCount, peakCount int64
+		var peakDate string
+		var avgCountPerDay float64
+		var dayCount int
+
 		err := rows.Scan(
-			&data.Scancode,
-			&data.KeyName,
-			&data.KeyCategory,
-			&data.TotalCount,
-			&data.PeakCount,
-			&data.PeakDate,
-			&data.AvgCountPerDay,
-			&data.DayCount,
+			&scancode,
+			&totalCount,
+			&peakCount,
+			&peakDate,
+			&avgCountPerDay,
+			&dayCount,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		data.Percentage = float64(data.TotalCount) / float64(totalKeystrokes) * 100
-		heatmapData = append(heatmapData, data)
+		// Get key info from in-memory mapping and calculate percentage
+		heatmapData = append(heatmapData, DetailedKeyHeatmap{
+			Scancode:       scancode,
+			KeyName:        GetKeyName(scancode),
+			KeyCategory:    GetKeyCategory(scancode),
+			TotalCount:     totalCount,
+			PeakCount:      peakCount,
+			PeakDate:       peakDate,
+			AvgCountPerDay: avgCountPerDay,
+			Percentage:     float64(totalCount) / float64(totalKeystrokes) * 100,
+			DayCount:       dayCount,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
