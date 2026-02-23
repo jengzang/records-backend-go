@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Skill: stay_detection (Advanced)
-Purpose: Detect stays using DBSCAN clustering with temporal-spatial constraints
-Algorithm: DBSCAN on GPS points with adaptive epsilon and temporal continuity
+Skill: stay_detection_optimized (Advanced)
+Purpose: Detect stays using DBSCAN with time-windowed batch processing
+Algorithm: DBSCAN on GPS points with temporal batching for performance
+Optimization: Process data in monthly windows to avoid O(n²) on full dataset
 """
 
 import sys
@@ -12,19 +13,44 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 from datetime import datetime
 from math import radians, cos, sin, asin, sqrt
+from collections import defaultdict
 
-class StayDetectionWorker:
-    def __init__(self, db_path, task_id):
+class OptimizedStayDetectionWorker:
+    def __init__(self, db_path, task_id, profile_id=None):
         self.db_path = db_path
         self.task_id = task_id
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
 
         # Algorithm parameters (optimized 2026-02-23)
-        self.min_duration_s = 2 * 60 * 60  # 2 hours (Skills requirement)
-        self.spatial_eps_m = 100  # 100 meters radius (stricter)
-        self.min_samples = 10  # Minimum points for a cluster (ensure density)
-        self.max_time_gap_s = 15 * 60  # 15 minutes max gap within stay (more continuous)
+        if profile_id:
+            self.load_profile(profile_id)
+        else:
+            self.use_default_params()
+
+        # Batch processing parameters
+        self.batch_window_days = 30  # Process 30 days at a time
+
+    def use_default_params(self):
+        """Use default parameters"""
+        self.min_duration_s = 2 * 60 * 60  # 2 hours
+        self.spatial_eps_m = 100  # 100 meters
+        self.min_samples = 10  # 10 points minimum
+        self.max_time_gap_s = 15 * 60  # 15 minutes
+
+    def load_profile(self, profile_id):
+        """Load parameters from threshold_profiles table"""
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT params_json FROM threshold_profiles WHERE id = ?', (profile_id,))
+        row = cursor.fetchone()
+        if row:
+            params = json.loads(row[0])
+            self.min_duration_s = params.get('min_duration_s', 2 * 60 * 60)
+            self.spatial_eps_m = params.get('spatial_eps_m', 100)
+            self.min_samples = params.get('min_samples', 10)
+            self.max_time_gap_s = params.get('max_time_gap_s', 15 * 60)
+        else:
+            self.use_default_params()
 
     def haversine_distance(self, lat1, lon1, lat2, lon2):
         """Calculate haversine distance in meters"""
@@ -59,8 +85,32 @@ class StayDetectionWorker:
         """, (int(progress * 100), message, self.task_id))
         self.conn.commit()
 
-    def load_data(self):
-        """Load track points from database"""
+    def get_time_windows(self):
+        """Get time windows for batch processing"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT MIN(dataTime) as min_time, MAX(dataTime) as max_time
+            FROM "一生足迹"
+            WHERE latitude IS NOT NULL
+              AND longitude IS NOT NULL
+              AND outlier_flag = 0
+        """)
+        row = cursor.fetchone()
+        min_time, max_time = row['min_time'], row['max_time']
+
+        # Create windows
+        window_size_s = self.batch_window_days * 24 * 60 * 60
+        windows = []
+        current_start = min_time
+        while current_start < max_time:
+            current_end = min(current_start + window_size_s, max_time)
+            windows.append((current_start, current_end))
+            current_start = current_end
+
+        return windows
+
+    def load_window_data(self, start_time, end_time):
+        """Load track points for a specific time window"""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT id, dataTime, latitude, longitude, province, city, county, town, village
@@ -68,16 +118,15 @@ class StayDetectionWorker:
             WHERE latitude IS NOT NULL
               AND longitude IS NOT NULL
               AND outlier_flag = 0
+              AND dataTime >= ?
+              AND dataTime < ?
             ORDER BY dataTime
-        """)
+        """, (start_time, end_time))
         rows = cursor.fetchall()
-        return rows
+        return [dict(row) for row in rows]
 
     def temporal_spatial_dbscan(self, points):
-        """
-        Perform DBSCAN clustering with temporal-spatial constraints
-        Returns: cluster labels for each point
-        """
+        """Perform DBSCAN clustering with temporal-spatial constraints"""
         if len(points) == 0:
             return np.array([])
 
@@ -89,7 +138,6 @@ class StayDetectionWorker:
             return self.haversine_distance(a[0], a[1], b[0], b[1])
 
         # Perform DBSCAN clustering
-        # eps is in meters, converted to approximate degrees
         eps_degrees = self.spatial_eps_m / 111000  # Rough conversion
         db = DBSCAN(eps=eps_degrees, min_samples=self.min_samples, metric=haversine_metric)
         labels = db.fit_predict(coords)
@@ -100,7 +148,7 @@ class StayDetectionWorker:
         """
         Filter clusters to ensure temporal continuity
         Split clusters if time gaps exceed threshold (recursive splitting)
-        Fixed 2026-02-23: Now recursively splits all gaps, not just the first one
+        Fixed 2026-02-23: Now recursively splits all gaps
         """
         filtered_labels = labels.copy()
         unique_labels = set(labels)
@@ -116,7 +164,7 @@ class StayDetectionWorker:
             # Sort by time
             cluster_points_sorted = sorted(cluster_points, key=lambda p: p['dataTime'])
 
-            # Find all split positions (where time gap > threshold)
+            # Find all split positions
             split_positions = []
             for i in range(1, len(cluster_points_sorted)):
                 time_gap = cluster_points_sorted[i]['dataTime'] - cluster_points_sorted[i-1]['dataTime']
@@ -132,40 +180,35 @@ class StayDetectionWorker:
                     start = pos
                 sub_clusters.append(cluster_points_sorted[start:])
 
-                # Assign new labels to each sub-cluster, filtering by min_samples
+                # Assign new labels to each sub-cluster
                 for sub_cluster in sub_clusters:
                     if len(sub_cluster) >= self.min_samples:
-                        # Sub-cluster has enough points, assign new label
                         for point in sub_cluster:
                             point_idx = next(idx for idx, p in enumerate(points) if p['id'] == point['id'])
                             filtered_labels[point_idx] = new_label
                         new_label += 1
                     else:
-                        # Sub-cluster too small, mark as noise
                         for point in sub_cluster:
                             point_idx = next(idx for idx, p in enumerate(points) if p['id'] == point['id'])
                             filtered_labels[point_idx] = -1
 
         return filtered_labels
 
-    def process(self, points):
-        """Main processing logic"""
-        self.update_progress(0.2, "Performing DBSCAN clustering...")
+    def process_window(self, points):
+        """Process a single time window"""
+        if len(points) == 0:
+            return []
 
         # Perform DBSCAN clustering
         labels = self.temporal_spatial_dbscan(points)
 
-        self.update_progress(0.4, "Filtering by temporal continuity...")
-
         # Filter by temporal continuity
         labels = self.filter_by_temporal_continuity(points, labels)
-
-        self.update_progress(0.6, "Extracting stay segments...")
 
         # Extract stay segments from clusters
         stays = []
         unique_labels = set(labels)
-        unique_labels.discard(-1)  # Remove noise
+        unique_labels.discard(-1)
 
         for label in unique_labels:
             cluster_indices = np.where(labels == label)[0]
@@ -180,35 +223,31 @@ class StayDetectionWorker:
             if duration_s < self.min_duration_s:
                 continue
 
-            # Calculate point density (points per hour)
-            # Added 2026-02-23: Filter out sparse "stays" with very few points
+            # Calculate point density
             point_count = len(cluster_points)
             point_density_per_hour = point_count / (duration_s / 3600) if duration_s > 0 else 0
 
-            # Filter by minimum point density (at least 2 points per hour)
+            # Filter by minimum point density
             if point_density_per_hour < 2.0:
                 continue
 
-            # Calculate center point (mean of coordinates)
+            # Calculate center point
             center_lat = np.mean([p['latitude'] for p in cluster_points])
             center_lon = np.mean([p['longitude'] for p in cluster_points])
 
-            # Calculate radius (max distance from center)
+            # Calculate radius
             radius_m = max(
                 self.haversine_distance(center_lat, center_lon, p['latitude'], p['longitude'])
                 for p in cluster_points
             )
 
-            # Calculate confidence based on cluster density
-            confidence = min(1.0, point_count / 10.0)  # Max confidence at 10+ points
+            # Calculate confidence
+            confidence = min(1.0, point_count / 10.0)
 
-            # Get admin info from first point
+            # Get admin info
             admin_info = dict(cluster_points[0])
 
-            # Determine stay type (SPATIAL for DBSCAN-based detection)
-            stay_type = 'SPATIAL'
-
-            # Create reason codes (why this was detected as a stay)
+            # Create reason codes
             reason_codes = ['dbscan_cluster', 'min_duration_met', 'temporal_continuity_verified']
             if point_count >= 10:
                 reason_codes.append('high_point_density')
@@ -217,7 +256,7 @@ class StayDetectionWorker:
 
             # Create metadata
             metadata = {
-                'algorithm': 'dbscan',
+                'algorithm': 'dbscan_windowed',
                 'eps_m': self.spatial_eps_m,
                 'min_samples': self.min_samples,
                 'cluster_label': int(label),
@@ -225,7 +264,7 @@ class StayDetectionWorker:
             }
 
             stays.append({
-                'stay_type': stay_type,
+                'stay_type': 'SPATIAL',
                 'start_time': start_time,
                 'end_time': end_time,
                 'duration_s': duration_s,
@@ -243,16 +282,53 @@ class StayDetectionWorker:
                 'metadata': json.dumps(metadata)
             })
 
-        self.update_progress(0.8, f"Found {len(stays)} stay segments")
-
         return stays
+
+    def merge_cross_window_stays(self, all_stays):
+        """Merge stays that span across window boundaries"""
+        if len(all_stays) == 0:
+            return []
+
+        # Sort by start time
+        all_stays.sort(key=lambda s: s['start_time'])
+
+        merged = []
+        current = all_stays[0]
+
+        for next_stay in all_stays[1:]:
+            # Check if stays are close in time and space
+            time_gap = next_stay['start_time'] - current['end_time']
+            distance = self.haversine_distance(
+                current['center_lat'], current['center_lon'],
+                next_stay['center_lat'], next_stay['center_lon']
+            )
+
+            # Merge if within spatial_eps and max_time_gap
+            if time_gap <= self.max_time_gap_s and distance <= self.spatial_eps_m:
+                # Merge: extend current stay
+                current['end_time'] = next_stay['end_time']
+                current['duration_s'] = current['end_time'] - current['start_time']
+                current['point_count'] += next_stay['point_count']
+                # Recalculate center (weighted average)
+                total_points = current['point_count']
+                current['center_lat'] = (current['center_lat'] * (total_points - next_stay['point_count']) +
+                                        next_stay['center_lat'] * next_stay['point_count']) / total_points
+                current['center_lon'] = (current['center_lon'] * (total_points - next_stay['point_count']) +
+                                        next_stay['center_lon'] * next_stay['point_count']) / total_points
+                current['confidence'] = min(1.0, total_points / 10.0)
+            else:
+                merged.append(current)
+                current = next_stay
+
+        merged.append(current)
+        return merged
 
     def save_results(self, stays):
         """Save results to database"""
         cursor = self.conn.cursor()
 
-        # Clear existing stay segments
-        cursor.execute("DELETE FROM stay_segments")
+        # Clear existing SPATIAL stays
+        cursor.execute("DELETE FROM stay_segments WHERE stay_type = 'SPATIAL'")
 
         # Insert new stay segments
         for stay in stays:
@@ -264,7 +340,7 @@ class StayDetectionWorker:
                     point_count, confidence,
                     reason_codes, metadata,
                     algo_version, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1_dbscan',
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'v2_dbscan_windowed',
                           CAST(strftime('%s', 'now') AS INTEGER),
                           CAST(strftime('%s', 'now') AS INTEGER))
             """, (
@@ -303,29 +379,50 @@ class StayDetectionWorker:
         self.conn.commit()
 
     def run(self):
-        """Execute the worker"""
+        """Execute the worker with time-windowed processing"""
         try:
             self.mark_running()
-            points = self.load_data()
-            self.update_progress(0.1, f"Loaded {len(points)} track points")
 
-            stays = self.process(points)
-            self.save_results(stays)
+            # Get time windows
+            windows = self.get_time_windows()
+            self.update_progress(0.05, f"Processing {len(windows)} time windows...")
+
+            # Process each window
+            all_stays = []
+            for i, (start_time, end_time) in enumerate(windows):
+                progress = 0.05 + (i / len(windows)) * 0.85
+                self.update_progress(progress, f"Processing window {i+1}/{len(windows)}...")
+
+                points = self.load_window_data(start_time, end_time)
+                if len(points) > 0:
+                    window_stays = self.process_window(points)
+                    all_stays.extend(window_stays)
+
+            # Merge cross-window stays
+            self.update_progress(0.90, "Merging cross-window stays...")
+            merged_stays = self.merge_cross_window_stays(all_stays)
+
+            # Save results
+            self.update_progress(0.95, f"Saving {len(merged_stays)} stays...")
+            self.save_results(merged_stays)
 
             summary = {
-                'total_points': len(points),
-                'stays_detected': len(stays),
-                'total_stay_duration_hours': sum(s['duration_s'] for s in stays) / 3600,
-                'avg_stay_duration_minutes': np.mean([s['duration_s'] for s in stays]) / 60 if stays else 0
+                'windows_processed': len(windows),
+                'stays_detected': len(merged_stays),
+                'total_stay_duration_hours': sum(s['duration_s'] for s in merged_stays) / 3600,
+                'avg_stay_duration_minutes': np.mean([s['duration_s'] for s in merged_stays]) / 60 if merged_stays else 0,
+                'optimization': 'time_windowed_dbscan'
             }
 
             self.mark_completed(summary)
-            print(f"Stay detection completed: {len(stays)} stays detected")
+            print(f"Optimized stay detection completed: {len(merged_stays)} stays detected")
             return 0
 
         except Exception as e:
-            error_msg = f"Stay detection failed: {str(e)}"
+            error_msg = f"Optimized stay detection failed: {str(e)}"
             print(error_msg, file=sys.stderr)
+            import traceback
+            traceback.print_exc()
             self.mark_failed(error_msg)
             return 1
 
@@ -333,13 +430,13 @@ class StayDetectionWorker:
             self.conn.close()
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python stay_detection.py <db_path> <task_id>")
+    if len(sys.argv) < 3:
+        print("Usage: python stay_detection_optimized.py <db_path> <task_id> [profile_id]")
         sys.exit(1)
 
     db_path = sys.argv[1]
     task_id = int(sys.argv[2])
+    profile_id = int(sys.argv[3]) if len(sys.argv) > 3 else None
 
-    worker = StayDetectionWorker(db_path, task_id)
+    worker = OptimizedStayDetectionWorker(db_path, task_id, profile_id)
     sys.exit(worker.run())
-
