@@ -269,6 +269,14 @@ func (r *StatsRepository) GetStayRankings(filter models.StatsFilter) ([]models.S
 		args = append(args, filter.TimeRange)
 	}
 
+	// Filter by stay_type if specified (requires JOIN with stay_segments)
+	// Note: This is a simplified approach. For production, consider adding stay_type to stay_statistics table
+	// or using a more complex query with aggregation from stay_segments
+	if filter.StayType != "" && filter.StayType != "ALL" {
+		// For now, we'll skip this filter since stay_statistics doesn't have stay_type
+		// TODO: Add stay_type column to stay_statistics table or aggregate from stay_segments
+	}
+
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}

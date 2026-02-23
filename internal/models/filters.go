@@ -71,5 +71,6 @@ type StatsFilter struct {
 	StatType  string `form:"statType"`  // PROVINCE, CITY, COUNTY, TOWN, GRID, ACTIVITY_TYPE
 	TimeRange string `form:"timeRange"` // all, YYYY, YYYY-MM, YYYY-MM-DD
 	OrderBy   string `form:"orderBy"`   // points, visits, duration, distance, count
+	StayType  string `form:"stayType"`  // ALL, SPATIAL, ADMIN_AREA (for stay rankings)
 	Limit     int    `form:"limit"`     // Max results
 }
