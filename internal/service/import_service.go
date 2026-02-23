@@ -172,7 +172,7 @@ func (s *ImportService) ExecuteImport(taskID int64, filePath string) error {
 
 	// Update status to running
 	task.Status = "running"
-	task.FilePath = filePath
+	task.FilePath = &filePath
 	if err := s.UpdateImportTask(task); err != nil {
 		return err
 	}
@@ -201,7 +201,8 @@ func (s *ImportService) ExecuteImport(taskID int64, filePath string) error {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		task.Status = "failed"
-		task.ErrorMessage = fmt.Sprintf("Python script error: %s\nOutput: %s", err.Error(), string(output))
+		errMsg := fmt.Sprintf("Python script error: %s\nOutput: %s", err.Error(), string(output))
+		task.ErrorMessage = &errMsg
 		s.UpdateImportTask(task)
 		return fmt.Errorf("failed to execute import: %w", err)
 	}
@@ -218,7 +219,8 @@ func (s *ImportService) ExecuteImport(taskID int64, filePath string) error {
 
 	if jsonStart == -1 {
 		task.Status = "failed"
-		task.ErrorMessage = "Failed to parse Python output"
+		errMsg := "Failed to parse Python output"
+		task.ErrorMessage = &errMsg
 		s.UpdateImportTask(task)
 		return fmt.Errorf("no JSON output found")
 	}
@@ -231,7 +233,8 @@ func (s *ImportService) ExecuteImport(taskID int64, filePath string) error {
 
 	if err := json.Unmarshal([]byte(outputStr[jsonStart:]), &result); err != nil {
 		task.Status = "failed"
-		task.ErrorMessage = fmt.Sprintf("Failed to parse JSON: %s", err.Error())
+		errMsg := fmt.Sprintf("Failed to parse JSON: %s", err.Error())
+		task.ErrorMessage = &errMsg
 		s.UpdateImportTask(task)
 		return fmt.Errorf("failed to parse JSON output: %w", err)
 	}
