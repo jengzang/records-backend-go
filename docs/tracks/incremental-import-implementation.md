@@ -192,20 +192,73 @@ curl http://localhost:8080/api/v1/admin/tracks/import/1
 
 ## 下一步计划
 
-### Phase 3: 实现端到端自动触发流水线 (P1)
+### Phase 3: 实现端到端自动触发流水线 (P1) ✅
 
 **目标**: 导入完成后自动触发地理编码和分析链
 
-**实施内容**:
-1. 修改 `ImportService.ExecuteImport()` 在导入完成后检查 `auto_trigger` 标志
-2. 如果启用，自动创建地理编码任务
-3. 地理编码完成后，自动触发分析任务链（30个技能）
-4. 实现任务回调机制或轮询机制
+**已实施内容**:
+1. ✅ 修改 `ImportService` 添加服务依赖注入
+2. ✅ 实现 `triggerPipeline()` 方法在导入完成后自动触发地理编码
+3. ✅ 实现 `waitAndTriggerAnalysis()` 方法轮询地理编码状态
+4. ✅ 实现 `triggerAnalysisChain()` 方法触发完整分析链
+5. ✅ 在路由中注入 `GeocodingService` 和 `AnalysisTaskService` 依赖
+6. ✅ 创建统一流水线API端点 `POST /api/v1/admin/pipeline/trigger`
 
 **流水线设计**:
 ```
-Import Task → Geocoding Task → Analysis Chain (30 skills)
+Import Task → Geocoding Task → Analysis Chain (8 skills)
+   ↓              ↓                  ↓
+ pending      pending           pending
+ running      running           running
+completed    completed         completed
 ```
+
+**自动触发逻辑**:
+1. 导入任务完成后，检查 `auto_trigger` 标志和 `new_records > 0`
+2. 如果启用，创建地理编码任务
+3. 后台轮询地理编码任务状态（每10秒检查一次，最多等待30分钟）
+4. 地理编码完成后，自动触发分析任务链
+5. 分析链包含8个核心技能（按依赖顺序执行）
+
+**API端点**:
+
+#### 统一流水线触发
+```
+POST /api/v1/admin/pipeline/trigger
+Content-Type: multipart/form-data
+
+参数:
+- file: 文件 (必需)
+- mode: 导入模式 (可选，默认 "append")
+- deduplicate: 是否去重 (可选，默认 "true")
+
+响应:
+{
+  "task_id": 1,
+  "status": "pending",
+  "message": "Import task created successfully. Pipeline will be triggered automatically after import completes."
+}
+```
+
+**分析技能执行顺序**:
+1. `outlier_detection` - 异常检测
+2. `transport_mode` - 交通方式分类
+3. `stay_detection` - 停留检测
+4. `trip_construction` - 行程构建
+5. `grid_system` - 网格系统
+6. `footprint_statistics` - 足迹统计
+7. `stay_statistics` - 停留统计
+8. `rendering_metadata` - 渲染元数据
+
+**轮询机制**:
+- 轮询间隔：10秒
+- 最大等待时间：30分钟
+- 状态检查：pending → running → completed/failed
+
+**错误处理**:
+- 地理编码失败：中止流水线，不触发分析
+- 地理编码超时：中止流水线
+- 分析任务创建失败：记录错误日志，继续执行其他任务
 
 ### Phase 4: 实现前端上传界面 (P2)
 
@@ -240,8 +293,10 @@ Import Task → Geocoding Task → Analysis Chain (30 skills)
 - [x] Go服务实现ImportService
 - [x] Go服务实现ImportHandler
 - [x] 路由添加导入端点
+- [x] 自动触发地理编码（Phase 3）
+- [x] 自动触发分析链（Phase 3）
+- [x] 统一流水线API端点（Phase 3）
 - [ ] 端到端测试（需要启动Go服务）
-- [ ] 自动触发地理编码（Phase 3）
 - [ ] 前端上传界面（Phase 4）
 
 ## 性能考虑
@@ -282,4 +337,10 @@ Import Task → Geocoding Task → Analysis Chain (30 skills)
 - ✅ 实现Phase 2: 实现数据导入Web API
 - ✅ 创建数据库迁移022
 - ✅ 更新路由配置
+- ✅ 实现Phase 3: 端到端自动触发流水线
+  - 添加服务依赖注入机制
+  - 实现自动触发地理编码
+  - 实现轮询机制等待地理编码完成
+  - 实现自动触发分析链
+  - 创建统一流水线API端点
 - 📝 编写实现文档

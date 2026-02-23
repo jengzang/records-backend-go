@@ -98,3 +98,60 @@ func (h *ImportHandler) GetImportStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, task)
 }
+
+// TriggerPipeline manually triggers the geocoding and analysis pipeline
+// POST /api/v1/admin/pipeline/trigger
+func (h *ImportHandler) TriggerPipeline(c *gin.Context) {
+	// Parse multipart form
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No file uploaded"})
+		return
+	}
+
+	// Validate file extension
+	ext := filepath.Ext(file.Filename)
+	if ext != ".csv" && ext != ".xlsx" && ext != ".xls" && ext != ".xlsm" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file format. Only CSV and Excel files are supported"})
+		return
+	}
+
+	// Parse form parameters
+	mode := c.DefaultPostForm("mode", "append")
+	if mode != "append" && mode != "replace" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid mode. Must be 'append' or 'replace'"})
+		return
+	}
+
+	deduplicate := c.DefaultPostForm("deduplicate", "true") == "true"
+
+	// Create import task with auto_trigger enabled
+	task, err := h.importService.CreateImportTask(file.Filename, file.Size, mode, deduplicate, true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create import task: %s", err.Error())})
+		return
+	}
+
+	// Save uploaded file
+	timestamp := time.Now().Format("20060102_150405")
+	fileName := fmt.Sprintf("%d_%s_%s", task.ID, timestamp, file.Filename)
+	filePath := h.importService.GetUploadPath(fileName)
+
+	if err := c.SaveUploadedFile(file, filePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to save file: %s", err.Error())})
+		return
+	}
+
+	// Execute import in background (will auto-trigger pipeline)
+	go func() {
+		if err := h.importService.ExecuteImport(task.ID, filePath); err != nil {
+			fmt.Printf("Import task %d failed: %s\n", task.ID, err.Error())
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"task_id": task.ID,
+		"status":  task.Status,
+		"message": "Import task created successfully. Pipeline will be triggered automatically after import completes.",
+	})
+}

@@ -50,6 +50,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	vizService := service.NewVisualizationService(vizRepo)
 	importService := service.NewImportService(db)
 
+	// Inject dependencies for auto-trigger pipeline
+	importService.SetGeocodingService(geocodingService)
+	importService.SetAnalysisTaskService(analysisTaskService)
+
 	// Initialize handlers
 	trackHandler := handler.NewTrackHandler(trackService)
 	statsHandler := handler.NewStatsHandler(statsService)
@@ -213,6 +217,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			{
 				tracks.POST("/import", importHandler.ImportData)
 				tracks.GET("/import/:id", importHandler.GetImportStatus)
+			}
+
+			// Unified pipeline (import + geocoding + analysis)
+			pipeline := admin.Group("/pipeline")
+			{
+				pipeline.POST("/trigger", importHandler.TriggerPipeline)
 			}
 
 			// Geocoding tasks management

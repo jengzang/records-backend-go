@@ -13,9 +13,11 @@ import (
 )
 
 type ImportService struct {
-	db              *sql.DB
-	uploadDir       string
-	pythonScriptPath string
+	db                   *sql.DB
+	uploadDir            string
+	pythonScriptPath     string
+	geocodingService     *GeocodingService
+	analysisTaskService  *AnalysisTaskService
 }
 
 func NewImportService(db *sql.DB) *ImportService {
@@ -28,10 +30,22 @@ func NewImportService(db *sql.DB) *ImportService {
 	os.MkdirAll(uploadDir, 0755)
 
 	return &ImportService{
-		db:              db,
-		uploadDir:       uploadDir,
-		pythonScriptPath: "scripts/tracks/import/write2sql.py",
+		db:                   db,
+		uploadDir:            uploadDir,
+		pythonScriptPath:     "scripts/tracks/import/write2sql.py",
+		geocodingService:     nil, // Will be set via SetGeocodingService
+		analysisTaskService:  nil, // Will be set via SetAnalysisTaskService
 	}
+}
+
+// SetGeocodingService sets the geocoding service (for dependency injection)
+func (s *ImportService) SetGeocodingService(service *GeocodingService) {
+	s.geocodingService = service
+}
+
+// SetAnalysisTaskService sets the analysis task service (for dependency injection)
+func (s *ImportService) SetAnalysisTaskService(service *AnalysisTaskService) {
+	s.analysisTaskService = service
 }
 
 // CreateImportTask creates a new import task record
@@ -189,7 +203,92 @@ func (s *ImportService) ExecuteImport(taskID int64, filePath string) error {
 		return err
 	}
 
+	// Auto-trigger geocoding and analysis if enabled
+	if task.AutoTrigger && task.NewRecords > 0 {
+		go s.triggerPipeline(task.ID)
+	}
+
 	return nil
+}
+
+// triggerPipeline triggers geocoding and analysis chain after import
+func (s *ImportService) triggerPipeline(importTaskID int64) {
+	fmt.Printf("Auto-triggering pipeline for import task %d\n", importTaskID)
+
+	// Step 1: Trigger geocoding
+	if s.geocodingService == nil {
+		fmt.Printf("Geocoding service not available, skipping auto-trigger\n")
+		return
+	}
+
+	geocodingTask, err := s.geocodingService.CreateTask(fmt.Sprintf("import_task_%d", importTaskID))
+	if err != nil {
+		fmt.Printf("Failed to create geocoding task: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Created geocoding task %d\n", geocodingTask.ID)
+
+	// Step 2: Wait for geocoding to complete, then trigger analysis
+	// Poll geocoding task status every 10 seconds
+	go s.waitAndTriggerAnalysis(geocodingTask.ID, importTaskID)
+}
+
+// waitAndTriggerAnalysis waits for geocoding to complete, then triggers analysis chain
+func (s *ImportService) waitAndTriggerAnalysis(geocodingTaskID int, importTaskID int64) {
+	fmt.Printf("Waiting for geocoding task %d to complete before triggering analysis\n", geocodingTaskID)
+
+	maxWaitTime := 30 * time.Minute
+	pollInterval := 10 * time.Second
+	startTime := time.Now()
+
+	for {
+		// Check if max wait time exceeded
+		if time.Since(startTime) > maxWaitTime {
+			fmt.Printf("Geocoding task %d exceeded max wait time, aborting auto-trigger\n", geocodingTaskID)
+			return
+		}
+
+		// Get geocoding task status
+		task, err := s.geocodingService.GetTask(geocodingTaskID)
+		if err != nil {
+			fmt.Printf("Failed to get geocoding task status: %v\n", err)
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		// Check if completed
+		if task.Status == "completed" {
+			fmt.Printf("Geocoding task %d completed, triggering analysis chain\n", geocodingTaskID)
+			s.triggerAnalysisChain(importTaskID)
+			return
+		}
+
+		// Check if failed
+		if task.Status == "failed" {
+			fmt.Printf("Geocoding task %d failed, aborting auto-trigger\n", geocodingTaskID)
+			return
+		}
+
+		// Wait before next poll
+		time.Sleep(pollInterval)
+	}
+}
+
+// triggerAnalysisChain triggers the complete analysis chain
+func (s *ImportService) triggerAnalysisChain(importTaskID int64) {
+	if s.analysisTaskService == nil {
+		fmt.Printf("Analysis task service not available, skipping analysis chain\n")
+		return
+	}
+
+	taskIDs, err := s.analysisTaskService.TriggerAnalysisChain("incremental", fmt.Sprintf("import_task_%d", importTaskID))
+	if err != nil {
+		fmt.Printf("Failed to trigger analysis chain: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Triggered analysis chain with %d tasks: %v\n", len(taskIDs), taskIDs)
 }
 
 // GetUploadPath returns the full path for an uploaded file
