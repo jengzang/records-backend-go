@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"records-backend-go/internal/keyboard/analysis"
+	"github.com/jengzang/records-backend-go/internal/keyboard/analysis"
 	_ "modernc.org/sqlite"
 )
 
@@ -66,10 +66,18 @@ func (h *Handler) GetDailyStats(c *gin.Context) {
 	limit := c.DefaultQuery("limit", "100")
 
 	query := `
-		SELECT id, date, keystrokes, left_clicks, right_clicks, middle_clicks,
-		       extra_clicks, wheel_scrolls, h_wheel_scrolls, mouse_distance_m,
-		       created_at, updated_at
-		FROM daily_stats
+		SELECT
+			k.date,
+			k.keystrokes,
+			COALESCE(m.lbcount, 0) as left_clicks,
+			COALESCE(m.rbcount, 0) as right_clicks,
+			COALESCE(m.mbcount, 0) as middle_clicks,
+			COALESCE(m.xbcount, 0) as extra_clicks,
+			COALESCE(m.wheel, 0) as wheel_scrolls,
+			COALESCE(m.hwheel, 0) as h_wheel_scrolls,
+			COALESCE(m.move, 0.0) as mouse_distance_m
+		FROM keyboard_data k
+		LEFT JOIN mouse_data m ON k.date = m.date
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -83,7 +91,7 @@ func (h *Handler) GetDailyStats(c *gin.Context) {
 		args = append(args, endDate)
 	}
 
-	query += " ORDER BY date DESC LIMIT ?"
+	query += " ORDER BY k.date DESC LIMIT ?"
 	limitInt, _ := strconv.Atoi(limit)
 	args = append(args, limitInt)
 
@@ -98,10 +106,9 @@ func (h *Handler) GetDailyStats(c *gin.Context) {
 	for rows.Next() {
 		var stat DailyStat
 		err := rows.Scan(
-			&stat.ID, &stat.Date, &stat.Keystrokes, &stat.LeftClicks,
+			&stat.Date, &stat.Keystrokes, &stat.LeftClicks,
 			&stat.RightClicks, &stat.MiddleClicks, &stat.ExtraClicks,
 			&stat.WheelScrolls, &stat.HWheelScrolls, &stat.MouseDistanceM,
-			&stat.CreatedAt, &stat.UpdatedAt,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -125,9 +132,9 @@ func (h *Handler) GetScancodeStats(c *gin.Context) {
 	}
 
 	query := `
-		SELECT s.id, s.date, s.scancode, s.count, s.created_at, m.key_name
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
+		SELECT s.id, s.date, s.scan_code, s.count, COALESCE(m.key_name, 'Unknown')
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE s.date = ?
 		ORDER BY s.count DESC
 	`
@@ -149,7 +156,7 @@ func (h *Handler) GetScancodeStats(c *gin.Context) {
 		var stat ScancodeStatWithName
 		err := rows.Scan(
 			&stat.ID, &stat.Date, &stat.Scancode, &stat.Count,
-			&stat.CreatedAt, &stat.KeyName,
+			&stat.KeyName,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -169,10 +176,10 @@ func (h *Handler) GetTopKeys(c *gin.Context) {
 	limit := c.DefaultQuery("limit", "20")
 
 	query := `
-		SELECT s.scancode, m.key_name, SUM(s.count) as total
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
-		GROUP BY s.scancode
+		SELECT s.scan_code, COALESCE(m.key_name, 'Unknown'), SUM(s.count) as total
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
+		GROUP BY s.scan_code
 		ORDER BY total DESC
 		LIMIT ?
 	`
@@ -187,7 +194,7 @@ func (h *Handler) GetTopKeys(c *gin.Context) {
 
 	// Get total keystrokes for percentage calculation
 	var totalKeystrokes int64
-	err = h.db.QueryRow("SELECT SUM(keystrokes) FROM daily_stats").Scan(&totalKeystrokes)
+	err = h.db.QueryRow("SELECT SUM(keystrokes) FROM keyboard_data").Scan(&totalKeystrokes)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -218,15 +225,16 @@ func (h *Handler) GetSummaryStats(c *gin.Context) {
 	// Get total statistics
 	query := `
 		SELECT
-			SUM(keystrokes) as total_keystrokes,
-			SUM(left_clicks + right_clicks + middle_clicks + extra_clicks) as total_clicks,
-			SUM(mouse_distance_m) as total_distance,
-			AVG(keystrokes) as avg_keystrokes,
-			AVG(left_clicks + right_clicks + middle_clicks + extra_clicks) as avg_clicks,
-			AVG(mouse_distance_m) as avg_distance,
+			SUM(k.keystrokes) as total_keystrokes,
+			SUM(COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0)) as total_clicks,
+			SUM(COALESCE(m.move, 0.0)) as total_distance,
+			AVG(k.keystrokes) as avg_keystrokes,
+			AVG(COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0)) as avg_clicks,
+			AVG(COALESCE(m.move, 0.0)) as avg_distance,
 			COUNT(*) as total_days
-		FROM daily_stats
-		WHERE keystrokes > 0
+		FROM keyboard_data k
+		LEFT JOIN mouse_data m ON k.date = m.date
+		WHERE k.keystrokes > 0
 	`
 
 	var totalDays int
@@ -245,7 +253,7 @@ func (h *Handler) GetSummaryStats(c *gin.Context) {
 	}
 
 	// Get active days count
-	err = h.db.QueryRow("SELECT COUNT(*) FROM daily_stats WHERE keystrokes > 100").Scan(&summary.ActiveDays)
+	err = h.db.QueryRow("SELECT COUNT(*) FROM keyboard_data WHERE keystrokes > 100").Scan(&summary.ActiveDays)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -254,9 +262,10 @@ func (h *Handler) GetSummaryStats(c *gin.Context) {
 	// Get peak day
 	var peakDay PeakDay
 	err = h.db.QueryRow(`
-		SELECT date, keystrokes, (left_clicks + right_clicks + middle_clicks + extra_clicks) as total_clicks
-		FROM daily_stats
-		ORDER BY keystrokes DESC
+		SELECT k.date, k.keystrokes, COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0) as total_clicks
+		FROM keyboard_data k
+		LEFT JOIN mouse_data m ON k.date = m.date
+		ORDER BY k.keystrokes DESC
 		LIMIT 1
 	`).Scan(&peakDay.Date, &peakDay.Keystrokes, &peakDay.Clicks)
 	if err != nil {
@@ -267,7 +276,7 @@ func (h *Handler) GetSummaryStats(c *gin.Context) {
 
 	// Get date range
 	var dateRange DateRange
-	err = h.db.QueryRow("SELECT MIN(date), MAX(date) FROM daily_stats").Scan(&dateRange.Start, &dateRange.End)
+	err = h.db.QueryRow("SELECT MIN(date), MAX(date) FROM keyboard_data").Scan(&dateRange.Start, &dateRange.End)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -289,30 +298,33 @@ func (h *Handler) GetTrends(c *gin.Context) {
 	switch granularity {
 	case "daily":
 		query = `
-			SELECT date, keystrokes,
-			       (left_clicks + right_clicks + middle_clicks + extra_clicks) as total_clicks,
-			       mouse_distance_m
-			FROM daily_stats
+			SELECT k.date, k.keystrokes,
+			       COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0) as total_clicks,
+			       COALESCE(m.move, 0.0) as mouse_distance
+			FROM keyboard_data k
+			LEFT JOIN mouse_data m ON k.date = m.date
 			WHERE 1=1
 		`
 	case "weekly":
 		query = `
 			SELECT
-				strftime('%Y-W%W', substr(date, 1, 4) || '-' || substr(date, 5, 2) || '-' || substr(date, 7, 2)) as week,
-				SUM(keystrokes) as keystrokes,
-				SUM(left_clicks + right_clicks + middle_clicks + extra_clicks) as total_clicks,
-				SUM(mouse_distance_m) as distance
-			FROM daily_stats
+				strftime('%Y-W%W', substr(k.date, 1, 4) || '-' || substr(k.date, 5, 2) || '-' || substr(k.date, 7, 2)) as week,
+				SUM(k.keystrokes) as keystrokes,
+				SUM(COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0)) as total_clicks,
+				SUM(COALESCE(m.move, 0.0)) as distance
+			FROM keyboard_data k
+			LEFT JOIN mouse_data m ON k.date = m.date
 			WHERE 1=1
 		`
 	case "monthly":
 		query = `
 			SELECT
-				substr(date, 1, 6) as month,
-				SUM(keystrokes) as keystrokes,
-				SUM(left_clicks + right_clicks + middle_clicks + extra_clicks) as total_clicks,
-				SUM(mouse_distance_m) as distance
-			FROM daily_stats
+				substr(k.date, 1, 6) as month,
+				SUM(k.keystrokes) as keystrokes,
+				SUM(COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0)) as total_clicks,
+				SUM(COALESCE(m.move, 0.0)) as distance
+			FROM keyboard_data k
+			LEFT JOIN mouse_data m ON k.date = m.date
 			WHERE 1=1
 		`
 	default:
@@ -321,11 +333,11 @@ func (h *Handler) GetTrends(c *gin.Context) {
 	}
 
 	if startDate != "" {
-		query += " AND date >= ?"
+		query += " AND k.date >= ?"
 		args = append(args, startDate)
 	}
 	if endDate != "" {
-		query += " AND date <= ?"
+		query += " AND k.date <= ?"
 		args = append(args, endDate)
 	}
 
@@ -369,9 +381,9 @@ func (h *Handler) GetKeyboardHeatmap(c *gin.Context) {
 	endDate := c.Query("end")
 
 	query := `
-		SELECT s.scancode, m.key_name, m.key_category, SUM(s.count) as total
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
+		SELECT s.scan_code, COALESCE(m.key_name, 'Unknown'), COALESCE(m.key_category, 'unknown'), SUM(s.count) as total
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -385,7 +397,7 @@ func (h *Handler) GetKeyboardHeatmap(c *gin.Context) {
 		args = append(args, endDate)
 	}
 
-	query += " GROUP BY s.scancode ORDER BY total DESC"
+	query += " GROUP BY s.scan_code ORDER BY total DESC"
 
 	rows, err := h.db.Query(query, args...)
 	if err != nil {
@@ -587,16 +599,16 @@ func (h *Handler) GetDetailedKeyboardHeatmap(c *gin.Context) {
 
 	query := `
 		SELECT
-			s.scancode,
-			m.key_name,
-			m.key_category,
+			s.scan_code,
+			COALESCE(m.key_name, 'Unknown'),
+			COALESCE(m.key_category, 'unknown'),
 			SUM(s.count) as total_count,
 			MAX(s.count) as peak_count,
-			(SELECT date FROM scancode_stats WHERE scancode = s.scancode ORDER BY count DESC LIMIT 1) as peak_date,
+			(SELECT date FROM scan_codes WHERE scan_code = s.scan_code ORDER BY count DESC LIMIT 1) as peak_date,
 			AVG(s.count) as avg_count_per_day,
 			COUNT(DISTINCT s.date) as day_count
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -610,7 +622,7 @@ func (h *Handler) GetDetailedKeyboardHeatmap(c *gin.Context) {
 		args = append(args, endDate)
 	}
 
-	query += " GROUP BY s.scancode ORDER BY total_count DESC"
+	query += " GROUP BY s.scan_code ORDER BY total_count DESC"
 
 	rows, err := h.db.Query(query, args...)
 	if err != nil {
@@ -621,7 +633,7 @@ func (h *Handler) GetDetailedKeyboardHeatmap(c *gin.Context) {
 
 	// Get total keystrokes for percentage
 	var totalKeystrokes int64
-	totalQuery := "SELECT SUM(keystrokes) FROM daily_stats WHERE 1=1"
+	totalQuery := "SELECT SUM(keystrokes) FROM keyboard_data WHERE 1=1"
 	totalArgs := []interface{}{}
 	if startDate != "" {
 		totalQuery += " AND date >= ?"

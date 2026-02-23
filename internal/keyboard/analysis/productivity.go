@@ -57,10 +57,11 @@ type PeakDay struct {
 func (pa *ProductivityAnalyzer) AnalyzeActivityMetrics(threshold int, startDate, endDate string) (*ActivityMetrics, error) {
 	query := `
 		SELECT
-			date,
-			keystrokes,
-			left_clicks + right_clicks + middle_clicks + extra_clicks as total_clicks
-		FROM daily_stats
+			k.date,
+			k.keystrokes,
+			COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0) as total_clicks
+		FROM keyboard_data k
+		LEFT JOIN mouse_data m ON k.date = m.date
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -182,11 +183,12 @@ func (pa *ProductivityAnalyzer) AnalyzeActivityMetrics(threshold int, startDate,
 func (pa *ProductivityAnalyzer) AnalyzeTypingIntensity(startDate, endDate string) (*IntensityMetrics, error) {
 	query := `
 		SELECT
-			keystrokes,
-			left_clicks + right_clicks + middle_clicks + extra_clicks as total_clicks,
-			mouse_distance_m
-		FROM daily_stats
-		WHERE keystrokes > 0
+			k.keystrokes,
+			COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0) as total_clicks,
+			COALESCE(m.move, 0.0) as mouse_distance
+		FROM keyboard_data k
+		LEFT JOIN mouse_data m ON k.date = m.date
+		WHERE k.keystrokes > 0
 	`
 	args := []interface{}{}
 
@@ -262,11 +264,12 @@ func (pa *ProductivityAnalyzer) AnalyzeTypingIntensity(startDate, endDate string
 func (pa *ProductivityAnalyzer) AnalyzePeakDays(limit int, startDate, endDate string) ([]PeakDay, error) {
 	query := `
 		SELECT
-			date,
-			keystrokes,
-			left_clicks + right_clicks + middle_clicks + extra_clicks as total_clicks,
-			mouse_distance_m
-		FROM daily_stats
+			k.date,
+			k.keystrokes,
+			COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0) as total_clicks,
+			COALESCE(m.move, 0.0) as mouse_distance
+		FROM keyboard_data k
+		LEFT JOIN mouse_data m ON k.date = m.date
 		WHERE 1=1
 	`
 	args := []interface{}{}

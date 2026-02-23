@@ -45,9 +45,9 @@ func (ca *CategoryAnalyzer) AnalyzeCategoryDistribution(startDate, endDate strin
 		SELECT
 			COALESCE(m.key_category, 'unknown') as category,
 			SUM(s.count) as total_count,
-			COUNT(DISTINCT s.scancode) as unique_keys
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
+			COUNT(DISTINCT s.scan_code) as unique_keys
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -96,12 +96,12 @@ func (ca *CategoryAnalyzer) AnalyzeCategoryDistribution(startDate, endDate strin
 func (ca *CategoryAnalyzer) AnalyzeTopKeysByCategory(category string, limit int, startDate, endDate string) ([]TopKey, error) {
 	query := `
 		SELECT
-			s.scancode,
+			s.scan_code,
 			m.key_name,
 			m.key_category,
 			SUM(s.count) as total_count
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE m.key_category = ?
 	`
 	args := []interface{}{category}
@@ -115,7 +115,7 @@ func (ca *CategoryAnalyzer) AnalyzeTopKeysByCategory(category string, limit int,
 		args = append(args, endDate)
 	}
 
-	query += " GROUP BY s.scancode, m.key_name, m.key_category ORDER BY total_count DESC LIMIT ?"
+	query += " GROUP BY s.scan_code, m.key_name, m.key_category ORDER BY total_count DESC LIMIT ?"
 	args = append(args, limit)
 
 	rows, err := ca.db.Query(query, args...)
@@ -158,8 +158,8 @@ func (ca *CategoryAnalyzer) AnalyzeModifierUsage(startDate, endDate string) (*Mo
 		SELECT
 			m.key_name,
 			SUM(s.count) as total_count
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE m.key_category = 'modifier'
 	`
 	args := []interface{}{}

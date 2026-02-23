@@ -8,6 +8,7 @@ import (
 	"github.com/jengzang/records-backend-go/internal/config"
 	"github.com/jengzang/records-backend-go/internal/database"
 	"github.com/jengzang/records-backend-go/internal/handler"
+	"github.com/jengzang/records-backend-go/internal/keyboard"
 	"github.com/jengzang/records-backend-go/internal/middleware"
 	"github.com/jengzang/records-backend-go/internal/repository"
 	"github.com/jengzang/records-backend-go/internal/service"
@@ -177,12 +178,16 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			viz.GET("/time-slices", vizHandler.GetTimeSliceData)
 		}
 
-		// 键盘鼠标统计接口 (placeholder)
-		keyboard := api.Group("/keyboard")
-		{
-			keyboard.GET("/stats", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "keyboard stats - not implemented yet"})
+		// 键盘鼠标统计接口
+		keyboardHandler, err := keyboard.NewHandler(cfg.KeyboardDBPath)
+		if err != nil {
+			// Log error but don't fail server startup
+			r.GET("/api/keyboard/*any", func(c *gin.Context) {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "keyboard module unavailable"})
 			})
+		} else {
+			// Note: Don't close the handler here - it needs to stay open for the server lifetime
+			keyboardHandler.RegisterRoutes(api)
 		}
 
 		// 飞机火车路线接口 (placeholder)

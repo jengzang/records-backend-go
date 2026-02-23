@@ -48,7 +48,7 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeTypingMetrics(startDate, endDate strin
 	// Get total keystrokes
 	totalQuery := `
 		SELECT SUM(keystrokes) as total_keystrokes
-		FROM daily_stats
+		FROM keyboard_data
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -76,8 +76,8 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeTypingMetrics(startDate, endDate strin
 		SELECT
 			m.key_name,
 			SUM(s.count) as total_count
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE m.key_name IN ('Backspace', 'Enter', 'Space', 'Delete')
 	`
 	keyArgs := []interface{}{}
@@ -148,8 +148,8 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeSpecialKeyUsage(limit int, startDate, 
 		SELECT
 			m.key_name,
 			SUM(s.count) as total_count
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE m.key_category = 'special'
 	`
 	args := []interface{}{}
@@ -190,8 +190,8 @@ func (tba *TypingBehaviorAnalyzer) AnalyzeLetterFrequency(startDate, endDate str
 		SELECT
 			m.key_name,
 			SUM(s.count) as total_count
-		FROM scancode_stats s
-		LEFT JOIN scancode_mapping m ON s.scancode = m.scancode
+		FROM scan_codes s
+		LEFT JOIN scancode_mapping m ON s.scan_code = m.scancode
 		WHERE m.key_category = 'letter'
 	`
 	args := []interface{}{}

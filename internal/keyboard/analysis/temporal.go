@@ -68,11 +68,12 @@ type WeekdayVsWeekend struct {
 func (ta *TemporalAnalyzer) AnalyzeDayOfWeek(startDate, endDate string) ([]DayOfWeekStat, error) {
 	query := `
 		SELECT
-			date,
-			keystrokes,
-			left_clicks + right_clicks + middle_clicks + extra_clicks as total_clicks,
-			mouse_distance_m
-		FROM daily_stats
+			k.date,
+			k.keystrokes,
+			COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0) as total_clicks,
+			COALESCE(m.move, 0.0) as mouse_distance
+		FROM keyboard_data k
+		LEFT JOIN mouse_data m ON k.date = m.date
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -152,15 +153,16 @@ func (ta *TemporalAnalyzer) AnalyzeDayOfWeek(startDate, endDate string) ([]DayOf
 func (ta *TemporalAnalyzer) AnalyzeMonthlyPatterns(startDate, endDate string) ([]MonthlyPattern, error) {
 	query := `
 		SELECT
-			SUBSTR(date, 1, 4) as year,
-			SUBSTR(date, 5, 2) as month,
-			SUM(keystrokes) as total_keystrokes,
-			SUM(left_clicks + right_clicks + middle_clicks + extra_clicks) as total_clicks,
-			SUM(mouse_distance_m) as total_distance,
-			AVG(keystrokes) as avg_keystrokes,
-			AVG(left_clicks + right_clicks + middle_clicks + extra_clicks) as avg_clicks,
+			SUBSTR(k.date, 1, 4) as year,
+			SUBSTR(k.date, 5, 2) as month,
+			SUM(k.keystrokes) as total_keystrokes,
+			SUM(COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0)) as total_clicks,
+			SUM(COALESCE(m.move, 0.0)) as total_distance,
+			AVG(k.keystrokes) as avg_keystrokes,
+			AVG(COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0)) as avg_clicks,
 			COUNT(*) as day_count
-		FROM daily_stats
+		FROM keyboard_data k
+		LEFT JOIN mouse_data m ON k.date = m.date
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -210,11 +212,12 @@ func (ta *TemporalAnalyzer) AnalyzeMonthlyPatterns(startDate, endDate string) ([
 func (ta *TemporalAnalyzer) AnalyzeWeekdayVsWeekend(startDate, endDate string) (*WeekdayVsWeekend, error) {
 	query := `
 		SELECT
-			date,
-			keystrokes,
-			left_clicks + right_clicks + middle_clicks + extra_clicks as total_clicks,
-			mouse_distance_m
-		FROM daily_stats
+			k.date,
+			k.keystrokes,
+			COALESCE(m.lbcount, 0) + COALESCE(m.rbcount, 0) + COALESCE(m.mbcount, 0) + COALESCE(m.xbcount, 0) as total_clicks,
+			COALESCE(m.move, 0.0) as mouse_distance
+		FROM keyboard_data k
+		LEFT JOIN mouse_data m ON k.date = m.date
 		WHERE 1=1
 	`
 	args := []interface{}{}
