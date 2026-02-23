@@ -101,6 +101,51 @@ func (s *ImportService) GetImportTask(id int64) (*models.ImportTask, error) {
 	return task, nil
 }
 
+// ListImportTasks retrieves all import tasks ordered by creation time (newest first)
+func (s *ImportService) ListImportTasks(limit int, offset int) ([]*models.ImportTask, error) {
+	if limit <= 0 {
+		limit = 50 // Default limit
+	}
+	if limit > 100 {
+		limit = 100 // Max limit
+	}
+
+	query := `
+		SELECT id, status, file_path, file_name, file_size, mode, deduplicate, auto_trigger,
+		       total_records, new_records, duplicate_records, error_message,
+		       created_at, updated_at, completed_at
+		FROM import_tasks
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?
+	`
+	rows, err := s.db.Query(query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list import tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []*models.ImportTask
+	for rows.Next() {
+		task := &models.ImportTask{}
+		err := rows.Scan(
+			&task.ID, &task.Status, &task.FilePath, &task.FileName, &task.FileSize,
+			&task.Mode, &task.Deduplicate, &task.AutoTrigger,
+			&task.TotalRecords, &task.NewRecords, &task.DuplicateRecords, &task.ErrorMessage,
+			&task.CreatedAt, &task.UpdatedAt, &task.CompletedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan import task: %w", err)
+		}
+		tasks = append(tasks, task)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating import tasks: %w", err)
+	}
+
+	return tasks, nil
+}
+
 // UpdateImportTask updates an import task
 func (s *ImportService) UpdateImportTask(task *models.ImportTask) error {
 	task.UpdatedAt = time.Now()

@@ -99,6 +99,32 @@ func (h *ImportHandler) GetImportStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, task)
 }
 
+// ListImportTasks retrieves all import tasks with pagination
+// GET /api/v1/admin/tracks/import
+func (h *ImportHandler) ListImportTasks(c *gin.Context) {
+	// Parse query parameters
+	limitStr := c.DefaultQuery("limit", "50")
+	offsetStr := c.DefaultQuery("offset", "0")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 50
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	tasks, err := h.importService.ListImportTasks(limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to list import tasks: %s", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusOK, tasks)
+}
+
 // TriggerPipeline manually triggers the geocoding and analysis pipeline
 // POST /api/v1/admin/pipeline/trigger
 func (h *ImportHandler) TriggerPipeline(c *gin.Context) {

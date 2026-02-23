@@ -216,6 +216,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			tracks := admin.Group("/tracks")
 			{
 				tracks.POST("/import", importHandler.ImportData)
+				tracks.GET("/import", importHandler.ListImportTasks)
 				tracks.GET("/import/:id", importHandler.GetImportStatus)
 			}
 
