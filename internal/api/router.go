@@ -48,6 +48,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	tripService := service.NewTripService(tripRepo)
 	gridService := service.NewGridService(gridRepo)
 	vizService := service.NewVisualizationService(vizRepo)
+	importService := service.NewImportService(db)
 
 	// Initialize handlers
 	trackHandler := handler.NewTrackHandler(trackService)
@@ -59,6 +60,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	tripHandler := handler.NewTripHandler(tripService)
 	gridHandler := handler.NewGridHandler(gridService)
 	vizHandler := handler.NewVisualizationHandler(vizService)
+	importHandler := handler.NewImportHandler(importService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -206,6 +208,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// 管理员接口
 		admin := api.Group("/admin")
 		{
+			// Data import management
+			tracks := admin.Group("/tracks")
+			{
+				tracks.POST("/import", importHandler.ImportData)
+				tracks.GET("/import/:id", importHandler.GetImportStatus)
+			}
+
 			// Geocoding tasks management
 			geocoding := admin.Group("/geocoding")
 			{
