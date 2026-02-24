@@ -90,6 +90,9 @@ func main() {
 					crossDeviceGroup.GET("/app-ecosystem", screentimeHandler.GetAppEcosystem)
 					crossDeviceGroup.GET("/time-allocation", screentimeHandler.GetTimeAllocation)
 					crossDeviceGroup.GET("/user-profile", screentimeHandler.GetUserProfile)
+					crossDeviceGroup.GET("/productivity-deep", screentimeHandler.GetProductivityDeep)
+					crossDeviceGroup.GET("/focus-analysis", screentimeHandler.GetFocusAnalysis)
+					crossDeviceGroup.GET("/recommendations", screentimeHandler.GetCrossDeviceRecommendations)
 				}
 			}
 		} else {
