@@ -86,6 +86,10 @@ func main() {
 					crossDeviceGroup.GET("/comparison", screentimeHandler.GetCrossDeviceComparison)
 					crossDeviceGroup.GET("/work-life-balance", screentimeHandler.GetWorkLifeBalance)
 					crossDeviceGroup.GET("/total-screentime", screentimeHandler.GetTotalScreentime)
+					crossDeviceGroup.GET("/switching-patterns", screentimeHandler.GetDeviceSwitchingPatterns)
+					crossDeviceGroup.GET("/app-ecosystem", screentimeHandler.GetAppEcosystem)
+					crossDeviceGroup.GET("/time-allocation", screentimeHandler.GetTimeAllocation)
+					crossDeviceGroup.GET("/user-profile", screentimeHandler.GetUserProfile)
 				}
 			}
 		} else {
