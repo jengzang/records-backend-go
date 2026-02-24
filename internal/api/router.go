@@ -11,6 +11,7 @@ import (
 	"github.com/jengzang/records-backend-go/internal/keyboard"
 	"github.com/jengzang/records-backend-go/internal/middleware"
 	"github.com/jengzang/records-backend-go/internal/repository"
+	"github.com/jengzang/records-backend-go/internal/screentime"
 	"github.com/jengzang/records-backend-go/internal/service"
 )
 
@@ -198,12 +199,24 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			})
 		}
 
-		// 屏幕使用时间接口 (placeholder)
-		screentime := api.Group("/screentime")
-		{
-			screentime.GET("/stats", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "screentime stats - not implemented yet"})
+		// 屏幕使用时间接口
+		screentimeHandler, err := screentime.NewHandler(cfg.ScreentimeDBPath)
+		if err != nil {
+			// Log error but don't fail server startup
+			r.GET("/api/screentime/*any", func(c *gin.Context) {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "screentime module unavailable"})
 			})
+		} else {
+			st := api.Group("/screentime")
+			{
+				st.GET("/summary", screentimeHandler.GetSummary)
+				st.GET("/daily", screentimeHandler.GetDailyStats)
+				st.GET("/rankings", screentimeHandler.GetRankings)
+				st.GET("/categories", screentimeHandler.GetCategories)
+				st.GET("/hourly", screentimeHandler.GetHourlyStats)
+				st.GET("/trends", screentimeHandler.GetTrends)
+				st.GET("/app/:packageId", screentimeHandler.GetAppDetail)
+			}
 		}
 
 		// Apple健康数据接口 (placeholder)

@@ -6,11 +6,12 @@ import (
 
 // Config 应用配置
 type Config struct {
-	Port           string
-	DBPath         string
-	KeyboardDBPath string
-	JWTSecret      string
-	MaxMemory      int64 // 最大内存使用（字节）
+	Port             string
+	DBPath           string
+	KeyboardDBPath   string
+	ScreentimeDBPath string
+	JWTSecret        string
+	MaxMemory        int64 // 最大内存使用（字节）
 }
 
 // Load 加载配置
@@ -30,16 +31,22 @@ func Load() *Config {
 		keyboardDBPath = "./data/keyboard/kmcounter.db"
 	}
 
+	screentimeDBPath := os.Getenv("SCREENTIME_DB_PATH")
+	if screentimeDBPath == "" {
+		screentimeDBPath = "./data/screentime/screentime.db"
+	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "your-secret-key-change-in-production"
 	}
 
 	return &Config{
-		Port:           port,
-		DBPath:         dbPath,
-		KeyboardDBPath: keyboardDBPath,
-		JWTSecret:      jwtSecret,
-		MaxMemory:      1024 * 1024 * 800, // 800MB 最大内存使用
+		Port:             port,
+		DBPath:           dbPath,
+		KeyboardDBPath:   keyboardDBPath,
+		ScreentimeDBPath: screentimeDBPath,
+		JWTSecret:        jwtSecret,
+		MaxMemory:        1024 * 1024 * 800, // 800MB 最大内存使用
 	}
 }

@@ -3,13 +3,43 @@ package main
 import (
 	"log"
 	"net/http"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jengzang/records-backend-go/internal/screentime"
 )
 
 func main() {
+	// Initialize screentime device manager
+	dataDir := "./data/screentime"
+	devicesDBPath := filepath.Join(dataDir, "devices.db")
+
+	deviceManager, err := screentime.NewDeviceManager(devicesDBPath, dataDir)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize screentime device manager: %v", err)
+		deviceManager = nil
+	}
+	if deviceManager != nil {
+		defer deviceManager.Close()
+		log.Println("Screentime device manager initialized successfully")
+	}
+
 	// 创建 Gin 路由
 	r := gin.Default()
+
+	// Enable CORS
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
 
 	// 健康检查端点
 	r.GET("/health", func(c *gin.Context) {
@@ -37,10 +67,21 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"message": "flights endpoint"})
 		})
 
-		// 屏幕使用时间接口
-		api.GET("/screentime", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"message": "screentime endpoint"})
-		})
+		// 屏幕使用时间接口 (Multi-device support)
+		if deviceManager != nil {
+			screentimeHandler := screentime.NewMultiDeviceHandler(deviceManager)
+			screentimeGroup := api.Group("/screentime")
+			{
+				screentimeGroup.GET("/devices", screentimeHandler.ListDevices)
+				screentimeGroup.GET("/summary", screentimeHandler.GetSummary)
+				screentimeGroup.GET("/daily", screentimeHandler.GetDailyStats)
+				screentimeGroup.GET("/rankings", screentimeHandler.GetRankings)
+			}
+		} else {
+			api.GET("/screentime", func(c *gin.Context) {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "screentime service not available"})
+			})
+		}
 
 		// Apple健康数据接口
 		api.GET("/health-data", func(c *gin.Context) {
