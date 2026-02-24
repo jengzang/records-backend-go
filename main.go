@@ -72,10 +72,21 @@ func main() {
 			screentimeHandler := screentime.NewMultiDeviceHandler(deviceManager)
 			screentimeGroup := api.Group("/screentime")
 			{
+				// Device management
 				screentimeGroup.GET("/devices", screentimeHandler.ListDevices)
+
+				// Basic statistics
 				screentimeGroup.GET("/summary", screentimeHandler.GetSummary)
 				screentimeGroup.GET("/daily", screentimeHandler.GetDailyStats)
 				screentimeGroup.GET("/rankings", screentimeHandler.GetRankings)
+
+				// Cross-device analysis
+				crossDeviceGroup := screentimeGroup.Group("/cross-device")
+				{
+					crossDeviceGroup.GET("/comparison", screentimeHandler.GetCrossDeviceComparison)
+					crossDeviceGroup.GET("/work-life-balance", screentimeHandler.GetWorkLifeBalance)
+					crossDeviceGroup.GET("/total-screentime", screentimeHandler.GetTotalScreentime)
+				}
 			}
 		} else {
 			api.GET("/screentime", func(c *gin.Context) {
