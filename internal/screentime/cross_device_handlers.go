@@ -95,31 +95,17 @@ func (h *MultiDeviceHandler) GetCrossDeviceComparison(c *gin.Context) {
 		})
 	}
 
-	// Get computer data
-	computerConn, err := h.deviceManager.GetDevice("computer_main")
+	// Get computer data using new query method
+	computerSummary, err := h.deviceManager.GetComputerSummary("computer_main")
 	if err == nil {
-		query := `
-		SELECT
-			SUM(total_duration_seconds) * 1000 as total_duration,
-			COUNT(DISTINCT date) as active_days,
-			COUNT(DISTINCT application) as total_apps
-		FROM manictime_daily
-		`
-		var totalDuration, activeDays, totalApps sql.NullInt64
-		if err := computerConn.DB.QueryRow(query).Scan(&totalDuration, &activeDays, &totalApps); err != nil {
-			logger.Error("Failed to query computer data", err, logrus.Fields{
-				"device": "computer_main",
-			})
-		} else {
-			comparison.Computer.TotalDuration = totalDuration.Int64
-			comparison.Computer.ActiveDays = int(activeDays.Int64)
-			comparison.Computer.TotalApps = int(totalApps.Int64)
-			if activeDays.Int64 > 0 {
-				comparison.Computer.AvgDailyDuration = float64(totalDuration.Int64) / float64(activeDays.Int64)
-			}
-
-			// Get top app
-			computerConn.DB.QueryRow("SELECT application FROM manictime_apps ORDER BY total_duration_seconds DESC LIMIT 1").Scan(&comparison.Computer.TopApp)
+		comparison.Computer.TotalDuration = computerSummary["totalDurationMS"].(int64)
+		comparison.Computer.TotalApps = computerSummary["totalApps"].(int)
+		comparison.Computer.ActiveDays = computerSummary["activeDays"].(int)
+		if avgDaily, ok := computerSummary["avgDailyDuration"].(float64); ok {
+			comparison.Computer.AvgDailyDuration = avgDaily
+		}
+		if topApp, ok := computerSummary["topApp"].(string); ok {
+			comparison.Computer.TopApp = topApp
 		}
 	} else {
 		logger.Warn("Computer device not available", logrus.Fields{
@@ -164,13 +150,12 @@ func (h *MultiDeviceHandler) GetCrossDeviceComparison(c *gin.Context) {
 func (h *MultiDeviceHandler) GetWorkLifeBalance(c *gin.Context) {
 	var balance WorkLifeBalance
 
-	// Get computer work duration (productivity apps)
-	computerConn, err := h.deviceManager.GetDevice("computer_main")
+	// Get computer work duration using new query method
+	computerSummary, err := h.deviceManager.GetComputerSummary("computer_main")
 	if err == nil {
-		// Simplified: assume most computer usage is work
-		var totalDuration sql.NullInt64
-		computerConn.DB.QueryRow("SELECT SUM(total_duration_seconds) * 1000 FROM manictime_daily").Scan(&totalDuration)
-		balance.WorkDuration = totalDuration.Int64
+		if totalDuration, ok := computerSummary["totalDurationMS"].(int64); ok {
+			balance.WorkDuration = totalDuration
+		}
 	}
 
 	// Get phone entertainment duration
