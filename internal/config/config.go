@@ -10,6 +10,7 @@ type Config struct {
 	DBPath           string
 	KeyboardDBPath   string
 	ScreentimeDBPath string
+	FlightsDBPath    string
 	JWTSecret        string
 	MaxMemory        int64 // 最大内存使用（字节）
 }
@@ -36,6 +37,11 @@ func Load() *Config {
 		screentimeDBPath = "./data/screentime/screentime.db"
 	}
 
+	flightsDBPath := os.Getenv("FLIGHTS_DB_PATH")
+	if flightsDBPath == "" {
+		flightsDBPath = "./data/flights/flights.db"
+	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "your-secret-key-change-in-production"
@@ -46,6 +52,7 @@ func Load() *Config {
 		DBPath:           dbPath,
 		KeyboardDBPath:   keyboardDBPath,
 		ScreentimeDBPath: screentimeDBPath,
+		FlightsDBPath:    flightsDBPath,
 		JWTSecret:        jwtSecret,
 		MaxMemory:        1024 * 1024 * 800, // 800MB 最大内存使用
 	}

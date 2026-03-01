@@ -78,6 +78,45 @@ func Close() error {
 	return nil
 }
 
+// OpenDB opens a new database connection (for additional databases like flights, keyboard, etc.)
+func OpenDB(path string) (*sql.DB, error) {
+	newDB, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Set connection pool settings
+	newDB.SetMaxOpenConns(10)
+	newDB.SetMaxIdleConns(5)
+
+	// Enable WAL mode for better concurrency
+	if _, err := newDB.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		newDB.Close()
+		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
+	}
+
+	// Set busy timeout to 30 seconds
+	if _, err := newDB.Exec("PRAGMA busy_timeout=30000"); err != nil {
+		newDB.Close()
+		return nil, fmt.Errorf("failed to set busy timeout: %w", err)
+	}
+
+	// Enable foreign keys
+	if _, err := newDB.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		newDB.Close()
+		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
+	}
+
+	// Test connection
+	if err := newDB.Ping(); err != nil {
+		newDB.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	log.Printf("Database opened successfully: %s", path)
+	return newDB, nil
+}
+
 // Transaction executes a function within a database transaction
 func Transaction(fn func(*sql.Tx) error) error {
 	tx, err := db.Begin()

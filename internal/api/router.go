@@ -7,12 +7,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jengzang/records-backend-go/internal/config"
 	"github.com/jengzang/records-backend-go/internal/database"
+	"github.com/jengzang/records-backend-go/internal/flights"
 	"github.com/jengzang/records-backend-go/internal/handler"
 	"github.com/jengzang/records-backend-go/internal/keyboard"
+	"github.com/jengzang/records-backend-go/internal/logger"
 	"github.com/jengzang/records-backend-go/internal/middleware"
 	"github.com/jengzang/records-backend-go/internal/repository"
 	"github.com/jengzang/records-backend-go/internal/screentime"
 	"github.com/jengzang/records-backend-go/internal/service"
+	"github.com/sirupsen/logrus"
+	_ "modernc.org/sqlite"
 )
 
 // SetupRouter 设置路由
@@ -191,12 +195,38 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			keyboardHandler.RegisterRoutes(api)
 		}
 
-		// 飞机火车路线接口 (placeholder)
-		flights := api.Group("/flights")
-		{
-			flights.GET("", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "flights list - not implemented yet"})
+		// 飞机火车路线接口
+		flightsDB, err := database.OpenDB(cfg.FlightsDBPath)
+		if err != nil {
+			logger.Warn("Failed to open flights database", logrus.Fields{
+				"db_path": cfg.FlightsDBPath,
+				"error":   err.Error(),
 			})
+			// Provide placeholder endpoint
+			flights := api.Group("/flights")
+			{
+				flights.GET("", func(c *gin.Context) {
+					c.JSON(http.StatusServiceUnavailable, gin.H{"error": "flights module unavailable"})
+				})
+			}
+		} else {
+			logger.Info("Flights database initialized", logrus.Fields{
+				"db_path": cfg.FlightsDBPath,
+			})
+
+			// Initialize flights module
+			flightsRepo := flights.NewRepository(flightsDB)
+			flightsService := flights.NewService(flightsRepo)
+			flightsHandler := flights.NewHandler(flightsService)
+
+			// Register routes
+			flightsGroup := api.Group("/flights")
+			{
+				flightsGroup.GET("", flightsHandler.GetFlights)
+				flightsGroup.GET("/summary", flightsHandler.GetFlightSummary)
+				flightsGroup.GET("/:id", flightsHandler.GetFlight)
+				flightsGroup.GET("/:id/route", flightsHandler.GetFlightRoute)
+			}
 		}
 
 		// 屏幕使用时间接口
