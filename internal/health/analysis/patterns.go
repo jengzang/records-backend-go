@@ -76,9 +76,15 @@ func (a *PatternAnalyzer) GetDailyPattern() (*DailyPattern, error) {
 	for rows.Next() {
 		var h HourlyPattern
 		var hourStr string
-		if err := rows.Scan(&hourStr, &h.AvgHeartRate, &h.Count); err != nil {
+		var avgHR sql.NullFloat64
+		if err := rows.Scan(&hourStr, &avgHR, &h.Count); err != nil {
 			continue
 		}
+		// Skip if NULL values
+		if !avgHR.Valid {
+			continue
+		}
+		h.AvgHeartRate = avgHR.Float64
 
 		fmt.Sscanf(hourStr, "%d", &h.Hour)
 		totalReadings += h.Count
@@ -146,9 +152,15 @@ func (a *PatternAnalyzer) GetWeeklyPattern() (*WeeklyPattern, error) {
 
 	for rows.Next() {
 		var d WeekdayPattern
-		if err := rows.Scan(&d.Weekday, &d.AvgHeartRate, &d.Count); err != nil {
+		var avgHR sql.NullFloat64
+		if err := rows.Scan(&d.Weekday, &avgHR, &d.Count); err != nil {
 			continue
 		}
+		// Skip if NULL values
+		if !avgHR.Valid {
+			continue
+		}
+		d.AvgHeartRate = avgHR.Float64
 
 		totalReadings += d.Count
 
@@ -194,13 +206,13 @@ func (a *PatternAnalyzer) GetActivityScore(date time.Time) (float64, error) {
 	`
 
 	var count int
-	var avgHR, maxHR, minHR float64
+	var avgHR, maxHR, minHR sql.NullFloat64
 	err := a.db.QueryRow(query, dateStr).Scan(&count, &avgHR, &maxHR, &minHR)
 	if err != nil {
 		return 0, fmt.Errorf("failed to calculate activity score: %w", err)
 	}
 
-	if count == 0 {
+	if count == 0 || !avgHR.Valid || !maxHR.Valid || !minHR.Valid {
 		return 0, nil
 	}
 
@@ -216,14 +228,14 @@ func (a *PatternAnalyzer) GetActivityScore(date time.Time) (float64, error) {
 	}
 
 	// Range score (normalize to 0-30, assuming 80+ BPM range is excellent)
-	hrRange := maxHR - minHR
+	hrRange := maxHR.Float64 - minHR.Float64
 	rangeScore := hrRange / 80.0 * 30.0
 	if rangeScore > 30 {
 		rangeScore = 30
 	}
 
 	// Average HR score (normalize to 0-30, assuming 80+ BPM is active)
-	avgScore := (avgHR - 60) / 40.0 * 30.0
+	avgScore := (avgHR.Float64 - 60) / 40.0 * 30.0
 	if avgScore < 0 {
 		avgScore = 0
 	}

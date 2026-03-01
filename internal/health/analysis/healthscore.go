@@ -54,14 +54,15 @@ func (c *HealthScoreCalculator) CalculateHealthScore(date time.Time) (*HealthSco
 		  AND DATE(start_date) = ?
 	`
 
-	var minHR, avgHR, maxHR, stdDev float64
+	var minHR, avgHR, maxHR, stdDev sql.NullFloat64
 	var count int
 	err := c.db.QueryRow(query, dateStr).Scan(&minHR, &avgHR, &maxHR, &count, &stdDev)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query health data: %w", err)
 	}
 
-	if count == 0 {
+	// Handle NULL values or zero count
+	if count == 0 || !minHR.Valid || !avgHR.Valid {
 		return &HealthScore{
 			Date:         dateStr,
 			OverallScore: 0,
@@ -72,12 +73,16 @@ func (c *HealthScoreCalculator) CalculateHealthScore(date time.Time) (*HealthSco
 	// 1. Resting HR Score (40 points)
 	// Optimal resting HR: 50-70 BPM
 	// Score decreases as HR moves away from optimal range
-	restingHRScore := calculateRestingHRScore(minHR)
+	restingHRScore := calculateRestingHRScore(minHR.Float64)
 
 	// 2. Variability Score (30 points)
 	// Healthy HRV (using stddev as proxy): 10-30 BPM
 	// Higher variability = better cardiovascular health
-	variabilityScore := calculateVariabilityScore(stdDev)
+	stdDevValue := 0.0
+	if stdDev.Valid {
+		stdDevValue = stdDev.Float64
+	}
+	variabilityScore := calculateVariabilityScore(stdDevValue)
 
 	// 3. Consistency Score (30 points)
 	// Based on measurement frequency
@@ -96,8 +101,8 @@ func (c *HealthScoreCalculator) CalculateHealthScore(date time.Time) (*HealthSco
 		RestingHRScore:   restingHRScore,
 		VariabilityScore: variabilityScore,
 		ConsistencyScore: consistencyScore,
-		RestingHR:        minHR,
-		AvgHR:            avgHR,
+		RestingHR:        minHR.Float64,
+		AvgHR:            avgHR.Float64,
 		MeasurementCount: count,
 		Grade:            grade,
 	}, nil

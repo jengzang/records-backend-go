@@ -128,7 +128,7 @@ func (a *HeartRateAnalyzer) GetHeartRateZones(startDate, endDate time.Time) (*He
 // DetectAnomalies detects anomalous heart rate readings (>3 standard deviations)
 func (a *HeartRateAnalyzer) DetectAnomalies(startDate, endDate time.Time) ([]Anomaly, error) {
 	// First, calculate mean and standard deviation
-	var mean, stdDev float64
+	var mean, stdDev sql.NullFloat64
 	query := `
 		SELECT AVG(value),
 		       SQRT(AVG(value * value) - AVG(value) * AVG(value)) as stddev
@@ -143,10 +143,15 @@ func (a *HeartRateAnalyzer) DetectAnomalies(startDate, endDate time.Time) ([]Ano
 		return nil, fmt.Errorf("failed to calculate statistics: %w", err)
 	}
 
+	// Return empty if no data
+	if !mean.Valid || !stdDev.Valid {
+		return []Anomaly{}, nil
+	}
+
 	// Find anomalies (>3 standard deviations from mean)
 	threshold := 3.0
-	lowerBound := mean - (threshold * stdDev)
-	upperBound := mean + (threshold * stdDev)
+	lowerBound := mean.Float64 - (threshold * stdDev.Float64)
+	upperBound := mean.Float64 + (threshold * stdDev.Float64)
 
 	anomalyQuery := `
 		SELECT id, start_date, value
@@ -174,7 +179,7 @@ func (a *HeartRateAnalyzer) DetectAnomalies(startDate, endDate time.Time) ([]Ano
 
 		// Determine reason and severity
 		if a.Value < lowerBound {
-			a.Reason = fmt.Sprintf("Unusually low (%.1f BPM, mean: %.1f)", a.Value, mean)
+			a.Reason = fmt.Sprintf("Unusually low (%.1f BPM, mean: %.1f)", a.Value, mean.Float64)
 			if a.Value < 40 {
 				a.Severity = "high"
 			} else if a.Value < 50 {
@@ -183,7 +188,7 @@ func (a *HeartRateAnalyzer) DetectAnomalies(startDate, endDate time.Time) ([]Ano
 				a.Severity = "low"
 			}
 		} else {
-			a.Reason = fmt.Sprintf("Unusually high (%.1f BPM, mean: %.1f)", a.Value, mean)
+			a.Reason = fmt.Sprintf("Unusually high (%.1f BPM, mean: %.1f)", a.Value, mean.Float64)
 			if a.Value > 180 {
 				a.Severity = "high"
 			} else if a.Value > 160 {
@@ -222,9 +227,16 @@ func (a *HeartRateAnalyzer) GetRestingHeartRate(startDate, endDate time.Time) ([
 	var results []RestingHR
 	for rows.Next() {
 		var r RestingHR
-		if err := rows.Scan(&r.Date, &r.MinBPM, &r.AvgBPM); err != nil {
+		var minBPM, avgBPM sql.NullFloat64
+		if err := rows.Scan(&r.Date, &minBPM, &avgBPM); err != nil {
 			continue
 		}
+		// Skip if NULL values
+		if !minBPM.Valid || !avgBPM.Valid {
+			continue
+		}
+		r.MinBPM = minBPM.Float64
+		r.AvgBPM = avgBPM.Float64
 		// Use minimum as proxy for resting heart rate
 		r.RestingBPM = r.MinBPM
 		results = append(results, r)
@@ -262,14 +274,18 @@ func (a *HeartRateAnalyzer) GetHeartRateVariability(startDate, endDate time.Time
 
 	for rows.Next() {
 		var date string
-		var avgHR, stdDev float64
+		var avgHR, stdDev sql.NullFloat64
 		var count int
 		if err := rows.Scan(&date, &avgHR, &stdDev, &count); err != nil {
 			continue
 		}
-		dailyStdDevs = append(dailyStdDevs, stdDev)
+		// Skip if NULL values
+		if !avgHR.Valid || !stdDev.Valid {
+			continue
+		}
+		dailyStdDevs = append(dailyStdDevs, stdDev.Float64)
 		dailyCounts = append(dailyCounts, count)
-		totalAvgHR += avgHR
+		totalAvgHR += avgHR.Float64
 		totalDays++
 	}
 
