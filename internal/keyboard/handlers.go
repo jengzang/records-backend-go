@@ -35,7 +35,7 @@ func (h *Handler) Close() error {
 	return h.db.Close()
 }
 
-// RegisterRoutes registers all keyboard routes
+	// RegisterRoutes registers all keyboard routes
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	keyboard := r.Group("/keyboard")
 	{
@@ -51,6 +51,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		keyboard.GET("/statistics/categories", h.GetCategoryAnalysis)
 		keyboard.GET("/statistics/typing_behavior", h.GetTypingBehavior)
 		keyboard.GET("/statistics/productivity", h.GetProductivityMetrics)
+		keyboard.GET("/statistics/hand_balance", h.GetHandBalance)
 
 		// Visualization data endpoints
 		keyboard.GET("/heatmap/keyboard", h.GetKeyboardHeatmap)
@@ -712,4 +713,16 @@ func (h *Handler) GetDetailedKeyboardHeatmap(c *gin.Context) {
 		"data":  heatmapData,
 		"count": len(heatmapData),
 	})
+}
+
+// GetHandBalance returns hand usage balance statistics
+// GET /api/v1/keyboard/statistics/hand_balance
+func (h *Handler) GetHandBalance(c *gin.Context) {
+	stats, err := analysis.GetHandBalanceStats(h.db, GetKeyHand, GetKeyName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
 }
