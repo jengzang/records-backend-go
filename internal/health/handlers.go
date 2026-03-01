@@ -546,3 +546,14 @@ func (h *Handler) GetWeightBMIAnalysis(c *gin.Context) {
 
 	c.JSON(http.StatusOK, analysis)
 }
+
+// GetExerciseAnalysis handles GET /api/v1/health/analysis/exercise
+func (h *Handler) GetExerciseAnalysis(c *gin.Context) {
+	analysis, err := h.service.GetExerciseAnalysis()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
+}

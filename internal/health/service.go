@@ -208,3 +208,8 @@ func (s *Service) GetWeightBMIAnalysis(startDate, endDate time.Time) (*analysis.
 	// Note: startDate and endDate are currently ignored, but kept for future filtering
 	return analysis.GetWeightBMIAnalysis(s.repo.db)
 }
+
+// GetExerciseAnalysis retrieves exercise and activity data analysis
+func (s *Service) GetExerciseAnalysis() (*analysis.ExerciseAnalysis, error) {
+	return analysis.GetExerciseAnalysis(s.repo.db)
+}
