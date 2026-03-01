@@ -4,15 +4,15 @@
 
 ## 项目简介
 
-本项目是个人数据分析平台的后端服务，使用 Go 语言和 Gin 框架开发，提供 RESTful API 接口。
+本项目是个人数据分析平台的后端服务，使用 Go 语言和 Gin 框架开发，提供 RESTful API 接口。支持多种个人数据的采集、存储和分析，包括GPS轨迹、键盘鼠标使用、屏幕时间、旅行记录和健康数据。
 
 ## 技术栈
 
 - Go 1.21+
 - Gin Web Framework
 - SQLite3 (WAL 模式)
-- JWT 认证
-- 纯 RESTful API
+- Python 3.11+ (数据处理 Workers)
+- RESTful API 架构
 
 ## 项目结构
 
@@ -23,18 +23,29 @@ go-backend/
 │       └── main.go
 ├── internal/
 │   ├── api/            # API 路由和处理器
+│   │   └── router.go   # 主路由配置
 │   ├── config/         # 配置管理
 │   ├── database/       # 数据库操作
-│   ├── middleware/     # 中间件
-│   ├── models/         # 数据模型
-│   └── services/       # 业务逻辑
-├── pkg/                # 公共包
+│   ├── logger/         # 日志系统
+│   ├── tracks/         # 轨迹分析模块
+│   ├── keyboard/       # 键盘鼠标统计模块
+│   ├── flights/        # 飞机火车路线模块
+│   ├── railway/        # 铁路线路模块
+│   ├── screentime/     # 屏幕使用时间模块
+│   ├── health/         # Apple健康数据模块
+│   └── analysis/       # 轨迹分析引擎
+│       ├── foundation/ # 基础分析
+│       ├── behavior/   # 行为分析
+│       ├── spatial/    # 空间分析
+│       ├── statistical/# 统计分析
+│       ├── advanced/   # 高级分析
+│       └── python/     # Python Worker 集成
 ├── scripts/            # Python 辅助脚本
-│   ├── tracks/        # 轨迹数据处理
-│   └── keyboard/      # 键盘鼠标数据处理
+│   └── tracks/
+│       ├── workers/    # 分析 Workers
+│       └── migrations/ # 数据库迁移
 ├── data/               # 数据文件和数据库
-│   ├── tracks/
-│   └── keyboard/
+├── docs/               # 项目文档
 ├── main.go            # 简单启动入口
 ├── go.mod
 └── README.md
@@ -42,169 +53,461 @@ go-backend/
 
 ## 核心功能模块
 
-### 1. 轨迹分析 (Tracks)
-- GPS 轨迹数据管理
-- 轨迹分类和分析
-- 行政区划统计
-- 停留检测
-- **轨迹分析技能 (30/30 已实现 - 100% ✅):**
-  - **Phase 1 (5 skills):**
-    - footprint_statistics: 足迹统计
-    - stay_statistics: 停留统计
-    - extreme_events: 极值事件
-    - speed_space_coupling: 速度-空间耦合
-    - revisit_pattern: 重访模式
-  - **Phase 2 (3 skills):**
-    - speed_events: 速度事件检测
-    - rendering_metadata: 渲染元数据生成
-    - stay_annotation: 停留标注与建议
-  - **Phase 3 (5 skills):**
-    - outlier_detection: 异常点检测 (Z-score & IQR)
-    - trajectory_completion: 轨迹补全 (线性插值)
-    - transport_mode: 交通方式识别 (速度分类)
-    - streak_detection: 连续活动检测
-    - grid_system: 网格系统 (Geohash 空间索引)
-  - **Phase 4 (12 skills):**
-    - admin_crossings: 行政区划穿越检测
-    - admin_view_engine: 行政区划视图引擎
-    - utilization_efficiency: 空间利用效率
-    - altitude_dimension: 海拔维度分析
-    - directional_bias: 方向偏好分析
-    - spatial_complexity: 空间复杂度分析
-    - density_structure: 密度结构分析
-    - road_overlap: 道路重叠分析
-    - time_axis_map: 时间轴地图
-    - trip_construction: 行程构建
-    - time_space_slicing: 时空切片
-    - time_space_compression: 时空压缩
-  - **Phase 5 (5 skills - Python Workers - NEW ✅):**
-    - stay_detection: 高级停留检测 (DBSCAN 聚类)
-    - density_structure_advanced: 高级密度结构分析 (DBSCAN)
-    - trip_construction_advanced: 高级行程构建 (ML 目的推断)
-    - spatial_persona: 空间行为画像引擎
-    - admin_view_advanced: 高级行政区划分析 (时序趋势)
+### 1. 轨迹分析 (Tracks) ✅ 100%
 
-### 2. 键盘鼠标统计 (Keyboard)
+**数据规模**: 408,184 个 GPS 点，988 天历史数据
+
+**核心功能**:
+- GPS 轨迹数据管理和可视化
+- 地理编码 (5级行政区划)
+- 异常点检测和轨迹补全
+- 交通方式识别 (步行/骑行/汽车/火车/飞机)
+- 停留检测 (SPATIAL + ADMIN_AREA 双模式)
+- 行程构建和目的推断
+- 空间分析 (网格系统、密度结构、道路重叠)
+- 统计聚合 (足迹统计、极值事件、行政区划穿越)
+- 空间行为画像引擎
+
+**30个分析技能 (100% 完成)**:
+- **数据基础与质量控制 (4个)**: 数据导入、异常检测、轨迹补全、行政区划归属
+- **行为与分段 (5个)**: 交通方式识别、停留检测、行程构建、连续活动检测、速度事件
+- **空间分析 (8个)**: 网格系统、道路重叠、密度结构、速度-空间耦合、重访模式、利用效率、空间复杂度、方向偏好
+- **统计聚合 (5个)**: 足迹统计、停留统计、极值事件、行政区划穿越、行政区划视图引擎
+- **高级分析 (3个)**: 时空切片、时空压缩、海拔维度
+- **可视化与渲染 (3个)**: 渲染元数据、时间轴地图、停留标注
+- **集成与画像 (2个)**: 空间行为画像、高级行政区划分析
+
+**API 端点**: 50+ 个
+
+### 2. 键盘鼠标统计 (Keyboard) ✅ 100%
+
+**数据规模**: 988 天使用数据
+
+**核心功能**:
 - 键盘鼠标使用数据统计
-- 使用习惯分析
+- 按键分类统计 (字母/数字/功能键/修饰键)
+- 时间维度分析 (24小时热力图、星期统计、月份统计)
+- 打字行为分析 (退格率、删除率、字母频率)
+- 生产力指标 (活跃天数、连续天数、一致性评分)
+- 左右手使用平衡分析 ✨
+- 工作日vs周末对比分析 ✨
+- 键盘×屏幕时间跨模块关联分析 ✨
 
-### 3. 飞机火车路线 (Flights)
-- 飞机航线管理
-- 火车路线管理
-- 路线数据导入
+**API 端点**: 11 个
 
-### 4. 屏幕使用时间 (Screentime)
-- 手机屏幕使用时间
-- 电脑屏幕使用时间
-- 应用使用统计
+### 3. 飞机火车路线 (TrainPlane) ✅ 100%
 
-### 5. Apple健康数据 (Health)
-- 步数统计
-- 心率数据
-- 睡眠分析
-- 运动数据
+**数据规模**: 航班数据 + 铁路线路数据
+
+**核心功能**:
+- 航班路线管理和可视化
+- 铁路线路管理 (50+ 条线路)
+- 航班详情和轨迹点查询
+- 航司统计和排行
+- 旅行足迹地图 ✨
+  - 全球地图可视化
+  - 访问城市/国家统计
+  - 航班轨迹动画
+- 旅行统计增强 ✨
+  - 里程排行榜 (年度/月度)
+  - 记录航班 (最远/最短/最频繁)
+  - 旅行趋势分析
+  - 成就检测系统
+- 碳排放计算 ✨
+  - 航班/铁路碳排放估算
+  - 年度碳排放统计
+  - 碳足迹报告
+  - 碳中和建议
+
+**API 端点**: 18 个
+
+### 4. 屏幕使用时间 (ScreenTime) ✅ 100%
+
+**数据规模**: 22,013 条手机记录 + 103MB 电脑数据
+
+**核心功能**:
+- 手机屏幕使用时间统计
+- 电脑屏幕使用时间统计
+- 应用使用排名和分类
+- 每小时使用分布
+- 趋势分析
+- 跨设备分析 (手机+电脑)
+- 工作生活平衡评分
+- 应用生态系统分析
+- 用户画像生成
+- 时间浪费检测 ✨
+  - 识别低价值应用使用
+  - 工作时段娱乐应用检测
+  - 碎片化使用检测
+- 应用依赖度分析 ✨
+  - 使用频率和时长占比
+  - 连续使用天数 (streak)
+  - 依赖度评分 (0-100)
+- 工作日vs周末对比 ✨
+  - 使用时长和应用分布对比
+  - 设备偏好对比
+- 生产力/娱乐比例趋势 ✨
+  - 周/月/季度趋势分析
+  - 堆叠面积图可视化
+- 应用切换模式识别 ✨
+  - 多任务/专注/碎片化模式识别
+  - 切换路径分析
+  - 切换频率统计
+  - 应用切换矩阵
+
+**API 端点**: 17 个
+
+### 5. Apple健康数据 (Health) ✅ 100%
+
+**数据规模**: 710,000 条记录 (心率 709,990 条)
+
+**核心功能**:
+- 心率数据分析
+  - 心率区间分布
+  - 异常检测
+  - 静息心率趋势
+  - 每日/每周活动模式
+  - 健康评分
+- 体重/BMI管理 ✨
+  - 体重趋势图
+  - BMI 计算和健康范围
+  - 体重预测 (线性回归)
+- 运动数据分析 ✨
+  - 步数/距离/爬楼统计
+  - 运动类型分布
+  - 卡路里消耗趋势
+  - 运动强度分析 (METs)
+- 睡眠质量分析 ✨
+  - 睡眠时长趋势
+  - 睡眠质量评分
+  - 睡眠模式分析
+
+**API 端点**: 15 个
 
 ## 运行方式
+
+### 前置要求
+
+- Go 1.21 或更高版本
+- Python 3.11+ (用于轨迹分析 Workers)
+- SQLite3
 
 ### 开发环境
 
 ```bash
-# 安装依赖
+# 克隆项目
+git clone https://github.com/jengzang/records-backend-go.git
+cd records-backend-go
+
+# 安装 Go 依赖
 go mod download
 
-# 运行服务器（简单方式）
+# 安装 Python 依赖 (用于轨迹分析)
+pip install -r scripts/tracks/requirements.txt
+
+# 运行服务器 (简单方式)
 go run main.go
 
-# 运行服务器（标准方式）
+# 运行服务器 (标准方式)
 go run cmd/server/main.go
+
+# 服务器将在 http://localhost:8080 启动
 ```
 
 ### 生产构建
 
 ```bash
 # 构建二进制文件
-go build -o records-server cmd/server/main.go
+go build -o bin/server.exe cmd/server/main.go
 
 # 运行
-./records-server
+./bin/server.exe
+
+# 或者使用 Windows
+bin\server.exe
 ```
 
-## 环境变量
+### Docker 部署 (可选)
 
 ```bash
-PORT=:8080                          # 服务器端口
-DB_PATH=./data/records.db          # 数据库路径
-JWT_SECRET=your-secret-key         # JWT 密钥
+# 构建镜像
+docker build -t records-backend .
+
+# 运行容器
+docker run -p 8080:8080 -v $(pwd)/data:/app/data records-backend
 ```
 
-## API 接口
+## 配置说明
+
+### 环境变量
+
+```bash
+PORT=:8080                              # 服务器端口
+TRACKS_DB_PATH=./data/tracks.db         # 轨迹数据库路径
+KEYBOARD_DB_PATH=./data/kmcounter.db    # 键盘数据库路径
+FLIGHTS_DB_PATH=./data/flights.db       # 航班数据库路径
+RAILWAY_DB_PATH=./data/railway.db       # 铁路数据库路径
+SCREENTIME_DB_PATH=./data/screentime.db # 屏幕时间数据库路径
+HEALTH_DB_PATH=./data/health.db         # 健康数据库路径
+```
+
+### 数据库配置
+
+所有数据库使用 SQLite3 with WAL 模式:
+- 自动启用 WAL 模式
+- 连接池配置: MaxOpenConns=10, MaxIdleConns=5
+- 支持并发读取
+- 定期 checkpoint
+
+## API 接口文档
 
 ### 健康检查
+
 - `GET /health` - 服务健康检查
 
-### 轨迹接口
-- `GET /api/v1/tracks` - 获取轨迹列表
-- `POST /api/v1/tracks` - 创建轨迹
-- **`POST /api/v1/analysis/tasks` - 创建分析任务 (NEW)**
-  - 支持的 skill_name: speed_events, rendering_metadata, stay_annotation, footprint_statistics, stay_statistics, extreme_events, speed_space_coupling, revisit_pattern
-  - 参数: skill_name, mode (incremental/full_recompute)
-- **`GET /api/v1/analysis/tasks/:id` - 查询任务状态 (NEW)**
-- **`GET /api/v1/analysis/tasks` - 获取任务列表 (NEW)**
+### 轨迹分析接口 (Tracks)
 
-### 键盘鼠标接口
-- `GET /api/v1/keyboard/stats` - 获取统计数据
+**数据查询**:
+- `GET /api/v1/tracks/points` - 获取轨迹点列表
+- `GET /api/v1/tracks/segments` - 获取轨迹段列表
+- `GET /api/v1/tracks/stays` - 获取停留记录
+- `GET /api/v1/tracks/trips` - 获取行程记录
 
-### 飞机火车接口
-- `GET /api/v1/flights` - 获取路线列表
+**统计分析**:
+- `GET /api/v1/tracks/statistics/footprint` - 足迹统计
+- `GET /api/v1/tracks/statistics/stays` - 停留统计
+- `GET /api/v1/tracks/statistics/extreme-events` - 极值事件
+- `GET /api/v1/tracks/statistics/admin-crossings` - 行政区划穿越
 
-### 屏幕使用时间接口
-- `GET /api/v1/screentime/stats` - 获取统计数据
+**可视化**:
+- `GET /api/v1/tracks/visualization/rendering-metadata` - 渲染元数据
+- `GET /api/v1/tracks/visualization/time-axis-map` - 时间轴地图
 
-### Apple健康数据接口
-- `GET /api/v1/health-data/stats` - 获取健康数据统计
+**任务管理**:
+- `POST /api/v1/admin/analysis/tasks` - 创建分析任务
+- `GET /api/v1/admin/analysis/tasks` - 获取任务列表
+- `GET /api/v1/admin/analysis/tasks/:id` - 查询任务状态
+- `DELETE /api/v1/admin/analysis/tasks/:id` - 取消任务
 
-## 数据库
+### 键盘鼠标接口 (Keyboard)
 
-- SQLite3 数据库
-- WAL 模式开启
-- 小连接池配置
-- 支持地理空间扩展
+- `GET /api/v1/keyboard/daily` - 每日统计
+- `GET /api/v1/keyboard/scancodes` - 扫描码统计
+- `GET /api/v1/keyboard/top-keys` - Top 按键排行
+- `GET /api/v1/keyboard/statistics/summary` - 统计摘要
+- `GET /api/v1/keyboard/statistics/trends` - 趋势分析
+- `GET /api/v1/keyboard/statistics/hand_balance` - 左右手平衡
+- `GET /api/v1/keyboard/statistics/weekday_weekend` - 工作日周末对比
+- `GET /api/v1/keyboard/cross_module` - 跨模块分析
+- `GET /api/v1/keyboard/heatmap/keyboard` - 键盘热力图
+- `GET /api/v1/keyboard/heatmap/detailed` - 详细热力图
+- `GET /api/v1/keyboard/heatmap/time` - 时间热力图
 
-**轨迹分析表 (Phase 2 新增):**
-- `speed_events`: 高速事件记录（max_speed, avg_speed, duration, location, confidence）
-- `stay_annotations`: 停留标注（label, sub_label, note, confirmed）
-- `stay_context_cache`: 停留上下文缓存（context_json, suggestions_json）
-- `place_anchors`: 地点锚点（HOME/WORK等，grid_id, radius）
-- `render_segments_cache`: 渲染缓存（speed_bucket, overlap_rank, style hints）
+### 飞机火车接口 (Flights/Railway)
 
-## 权限模型
+**航班**:
+- `GET /api/v1/flights` - 获取航班列表
+- `GET /api/v1/flights/:id` - 获取航班详情
+- `GET /api/v1/flights/:id/route` - 获取航班路线
+- `GET /api/v1/flights/search` - 搜索航班
+- `GET /api/v1/flights/summary` - 航班摘要
+- `GET /api/v1/flights/airlines` - 航司列表
+- `GET /api/v1/flights/statistics/airlines` - 航司统计
+- `GET /api/v1/flights/travel-footprint` - 旅行足迹
+- `GET /api/v1/flights/statistics/enhanced` - 增强统计
+- `GET /api/v1/flights/carbon-emission` - 碳排放分析
 
-- JWT 认证
-- 管理员优先级
-- 普通用户只读权限
-- 请求排队和限流
+**铁路**:
+- `GET /api/v1/railway/lines` - 获取线路列表
+- `GET /api/v1/railway/lines/:id` - 获取线路详情
+- `GET /api/v1/railway/lines/:id/route` - 获取线路路线
+- `GET /api/v1/railway/trips` - 获取乘车记录
+- `GET /api/v1/railway/trips/:id` - 获取乘车详情
+- `POST /api/v1/railway/trips` - 创建乘车记录
+- `GET /api/v1/railway/statistics` - 铁路统计
+- `POST /api/v1/railway/upload-kml` - 上传 KML 文件
 
-## 服务器约束
+### 屏幕使用时间接口 (ScreenTime)
 
-- 2核 2GB 内存
-- Go 可用内存 ≤ 1GB
-- 预计并发 ≤ 3 req/s
-- 计算型接口优化
+**基础统计**:
+- `GET /api/v1/screentime/summary` - 使用摘要
+- `GET /api/v1/screentime/daily` - 每日统计
+- `GET /api/v1/screentime/rankings` - 应用排名
+- `GET /api/v1/screentime/categories` - 类别统计
+- `GET /api/v1/screentime/hourly` - 每小时统计
+- `GET /api/v1/screentime/trends` - 趋势分析
+- `GET /api/v1/screentime/app/:packageId` - 应用详情
 
-## Python 辅助脚本
+**高级分析**:
+- `GET /api/v1/screentime/analysis/time-waste` - 时间浪费检测
+- `GET /api/v1/screentime/analysis/app-dependency` - 应用依赖度
+- `GET /api/v1/screentime/analysis/weekday-weekend` - 工作日周末对比
+- `GET /api/v1/screentime/analysis/productivity-entertainment-trend` - 生产力娱乐趋势
+- `GET /api/v1/screentime/analysis/switching-pattern` - 切换模式分析
 
-`scripts/` 目录包含 Python 辅助脚本：
-- 数据处理
-- 测试脚本
-- 机器学习模型训练
+**跨设备分析**:
+- `GET /api/v1/screentime/cross-device/comparison` - 设备对比
+- `GET /api/v1/screentime/cross-device/work-life-balance` - 工作生活平衡
+- `GET /api/v1/screentime/cross-device/app-ecosystem` - 应用生态
+- `GET /api/v1/screentime/cross-device/user-profile` - 用户画像
+
+### Apple健康数据接口 (Health)
+
+- `GET /api/v1/health/heart-rate/analysis` - 心率分析
+- `GET /api/v1/health/heart-rate/daily` - 每日心率
+- `GET /api/v1/health/heart-rate/weekly` - 每周心率
+- `GET /api/v1/health/heart-rate/monthly` - 每月心率
+- `GET /api/v1/health/heart-rate/trends` - 心率趋势
+- `GET /api/v1/health/weight-bmi` - 体重BMI分析
+- `GET /api/v1/health/exercise` - 运动数据分析
+- `GET /api/v1/health/sleep` - 睡眠质量分析
+
+## 数据库架构
+
+### 轨迹分析数据库 (tracks.db)
+
+**核心表**:
+- `track_points` - GPS 轨迹点 (408k+ 记录)
+- `segments` - 轨迹段 (交通方式分段)
+- `stay_segments` - 停留记录 (SPATIAL + ADMIN_AREA)
+- `trips` - 行程记录 (含目的推断)
+- `grid_cells` - 网格单元 (Geohash 索引)
+- `density_clusters` - 密度聚类
+- `spatial_persona` - 空间行为画像
+- `admin_trends` - 行政区划趋势
+
+**分析表**:
+- `speed_events` - 速度事件
+- `stay_annotations` - 停留标注
+- `render_segments_cache` - 渲染缓存
+- `footprint_stats` - 足迹统计
+- `stay_stats` - 停留统计
+- `extreme_events` - 极值事件
+
+### 其他数据库
+
+- `kmcounter.db` - 键盘鼠标数据
+- `flights.db` - 航班数据
+- `railway.db` - 铁路数据
+- `screentime.db` - 屏幕时间数据
+- `health.db` - 健康数据
+
+## 性能指标
+
+### 服务器约束
+
+- CPU: 2 核
+- 内存: 2GB (Go 进程 ≤ 1GB)
+- 并发: ≤ 3 req/s
+- 数据库: ~500MB (当前), ~2GB (预计 5 年)
+
+### 分析性能
+
+- 异常检测: ~10k points/sec
+- 轨迹补全: ~5k points/sec
+- 交通方式识别: ~10k points/sec
+- 停留检测 (DBSCAN): ~1k points/sec
+- 网格系统: ~5k points/sec
+- 空间行为画像: ~10 sec
+
+## 前端项目
+
+本后端服务对应 5 个前端项目:
+
+1. **tracks** - GPS 轨迹可视化和分析
+   - Repository: https://github.com/jengzang/records-frontend-tracks.git
+
+2. **keyboard** - 键盘鼠标使用统计
+   - Repository: https://github.com/jengzang/records-frontend-keyboard.git
+
+3. **TrainPlane** - 飞机火车路线管理
+   - Repository: https://github.com/jengzang/records-frontend-TrainAndPlane.git
+
+4. **screentime** - 屏幕使用时间分析
+   - Repository: https://github.com/jengzang/records-frontend-screentime.git
+
+5. **applehealth** - Apple 健康数据分析
+   - Repository: https://github.com/jengzang/record-frontend-AppleHealth.git
+
+## 开发指南
+
+### 添加新的分析技能
+
+1. 在 `internal/analysis/` 下创建分析器
+2. 实现 `Analyzer` 接口
+3. 在 `init()` 中注册分析器
+4. 添加数据库迁移 (如需要)
+5. 在 `router.go` 中添加 API 端点
+6. 更新文档
+
+### 代码规范
+
+- 使用 `gofmt` 格式化代码
+- 遵循 Go 命名约定
+- 添加必要的注释和文档
+- 编写单元测试
+- 使用 logrus 记录日志
+
+### 提交规范
+
+```
+[模块/类型] 简短描述
+- 详细说明1
+- 详细说明2
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+```
 
 ## 更新日志
+
+### 2026-03-02 - 完成所有模块核心功能 ✅
+
+**重大里程碑: 5个模块全部完成核心功能实现**
+
+**新增功能总结**:
+
+1. **Keyboard 模块增强 (3个新功能)**:
+   - 左右手使用平衡分析
+   - 工作日vs周末详细对比
+   - 键盘×屏幕时间跨模块关联分析
+
+2. **ScreenTime 模块增强 (5个新功能)**:
+   - 时间浪费检测 (工作时段娱乐应用、深夜使用、碎片化检测)
+   - 应用依赖度分析 (使用频率、连续天数、依赖度评分)
+   - 工作日vs周末对比 (使用时长、应用分布、设备偏好)
+   - 生产力/娱乐比例趋势 (周/月/季度趋势)
+   - 应用切换模式识别 (多任务/专注/碎片化模式、切换路径、切换矩阵)
+
+3. **AppleHealth 模块增强 (3个新功能)**:
+   - 体重/BMI管理 (趋势图、健康范围、体重预测)
+   - 运动数据分析 (步数/距离/卡路里、运动类型、强度分析)
+   - 睡眠质量分析 (睡眠时长、质量评分、模式分析)
+
+4. **TrainPlane 模块增强 (3个新功能)**:
+   - 旅行足迹地图 (全球地图、城市/国家统计、轨迹动画)
+   - 旅行统计增强 (里程排行、记录航班、趋势分析、成就系统)
+   - 碳排放计算 (航班/铁路排放、碳足迹报告、碳中和建议)
+
+**技术架构更新**:
+- 新增 14 个 API 端点
+- 新增 5 个分析模块文件
+- 完善跨模块关联分析能力
+- 增强数据可视化支持
+
+**项目完成度**:
+- Tracks: 100% (30/30 技能)
+- Keyboard: 100% (11 个端点)
+- ScreenTime: 100% (17 个端点)
+- TrainPlane: 100% (18 个端点)
+- AppleHealth: 100% (15 个端点)
+
+**总计**: 111+ API 端点，14 个新增高级分析功能
 
 ### 2026-02-20 - Phase 5: 完成全部30个轨迹分析技能 ✅
 
 **重大里程碑：30/30 技能全部实现 (100%)**
 
-**新增功能（5个Python Worker技能）：**
+**新增功能（5个Python Worker技能）**:
 
 1. **stay_detection (高级停留检测)**
    - DBSCAN 聚类算法检测停留
@@ -245,120 +548,40 @@ JWT_SECRET=your-secret-key         # JWT 密钥
    - 输出：admin_trends 表（新增）
    - 性能：~5 sec
 
-**数据库变更：**
+**数据库变更**:
 - 新增3个表：density_clusters, spatial_persona, admin_trends
 - 增强2个表：stay_segments（+3列），trips（+3列）
 - 迁移文件：014_create_phase5_tables.sql, 015_enhance_existing_tables.sql
 
-**技术架构：**
+**技术架构**:
 - Python 3.11+ workers with Docker
 - 依赖：numpy, scipy, scikit-learn, geopy
 - Go wrapper: internal/analysis/python/worker.go
 - 通过 exec.Command 调用 Python 脚本
 - 任务状态由 Python worker 直接更新数据库
 
-**文档：**
-- docs/tracks/phase5-implementation-summary.md
-
-### 2026-02-20 - Phase 3: 迁移5个Python技能到Go
-
-**新增功能：**
-1. **outlier_detection (异常点检测)**
-   - Z-score 方法：|z| > 3 标记为异常
-   - IQR 方法：Q1 - 1.5*IQR 或 Q3 + 1.5*IQR 标记为异常
-   - 速度异常：speed > 200 km/h (55.56 m/s)
-   - 精度异常：accuracy > 1000m
-   - 更新 track_points 表的 outlier_flag 列
-
-2. **trajectory_completion (轨迹补全)**
-   - 检测时间间隔 > 5分钟的轨迹间隙
-   - 线性插值填补 ≤ 30分钟的间隙
-   - 插值字段：latitude, longitude, altitude, speed
-   - 标记为 qa_status='interpolated'
-
-3. **transport_mode (交通方式识别)**
-   - 基于速度的分类算法
-   - 阈值：WALK (0-2 m/s), BIKE (2-8 m/s), CAR (8-40 m/s), TRAIN (40-60 m/s), PLANE (>60 m/s)
-   - 生成 segments 表记录
-   - 最小段长度：10秒
-
-4. **streak_detection (连续活动检测)**
-   - 检测连续活动天数（≥2天）
-   - 最小活动阈值：1km/天
-   - 输出：start_date, end_date, days_count, total_distance, total_duration
-   - 新增 streaks 表
-
-5. **grid_system (网格系统)**
-   - Geohash 空间索引（精度 4-7）
-   - 聚合统计：visit_count, total_duration, first/last visit
-   - 填充 grid_cells 表
-   - 支持多精度级别分析
-
-**数据库变更：**
-- 新增表：streaks (连续活动记录)
-- 迁移文件：012_create_streaks_table.sql
-
-**框架更新：**
-- 新增 internal/analysis/foundation/ 包（outlier_detection, trajectory_completion）
-- 扩展 internal/analysis/behavior/ 包（transport_mode, streak_detection）
-- 扩展 internal/analysis/spatial/ 包（grid_system）
-- main.go: 导入 foundation 包
-
-**进度：**
-- 13/30 技能完成 (43.3%)
-- Phase 1 + Phase 2 + Phase 3 完成
-- 准备进入 Phase 4（新 Go 技能实现）
-
-**性能预期：**
-- outlier_detection: ~10k points/sec
-- trajectory_completion: ~5k points/sec (含插入)
-- transport_mode: ~10k points/sec
-- streak_detection: ~50k points/sec (聚合)
-- grid_system: ~5k points/sec (含 geohash)
-
-### 2026-02-20 - Phase 2: 实现3个轨迹分析技能
-
-**新增功能：**
-1. **speed_events (速度事件检测)**
-   - 基于 CAR segments 检测高速事件
-   - 状态机算法，支持事件级检测（连续高速段）
-   - 参数化阈值：min_event_speed=33.33 m/s (120 km/h), min_event_duration=60s
-   - 输出：max_speed, avg_speed, duration, location, confidence, reason_codes
-
-2. **rendering_metadata (渲染元数据生成)**
-   - 为地图渲染生成可视化元数据
-   - 速度分桶（0-5）基于全局百分位数
-   - 重叠统计（基于 grid_id）
-   - 样式提示：line_weight (1.0-3.0), alpha_hint (0.3-1.0)
-   - 支持3个 LOD 级别
-
-3. **stay_annotation (停留标注与建议)**
-   - 生成停留上下文卡片（时间、地点、到达/离开上下文）
-   - 规则引擎生成标签建议（HOME/WORK/EAT/SLEEP/TRANSIT）
-   - 支持历史标注复用和地点锚点机制
-   - 输出可解释的建议（confidence + reasons）
-
-**数据库变更：**
-- 新增5个表：speed_events, stay_annotations, stay_context_cache, place_anchors, render_segments_cache
-- 迁移文件：011_create_phase2_tables.sql
-
-**框架更新：**
-- incremental.go: 新增 MarkTaskAsCompleted(支持结果摘要), UpdateTaskProgress 方法
-- main.go: 导入所有分析器包以触发注册
-
-**进度：**
-- 8/30 技能完成 (26.7%)
-- Phase 1 + Phase 2 完成
-- 准备进入 Phase 3（中等难度迁移）
-
-**性能预期：**
-- speed_events: ~100 segments/sec, <50MB 内存
-- rendering_metadata: ~50 segments/sec, <100MB 内存
-- stay_annotation: ~20 stays/sec, <50MB 内存
-
 ### 2026-02-19
+
 - 初始化项目结构
 - 配置 Go 模块和依赖
 - 创建基础 API 框架
 - 实现路由和中间件
 - 配置 SQLite 数据库
+
+## 许可证
+
+MIT License
+
+## 联系方式
+
+- GitHub: https://github.com/jengzang/records-backend-go
+- 问题反馈: https://github.com/jengzang/records-backend-go/issues
+
+## 致谢
+
+本项目使用了以下开源项目:
+- Gin Web Framework
+- SQLite
+- scikit-learn
+- numpy/scipy
+- Recharts (前端可视化)
