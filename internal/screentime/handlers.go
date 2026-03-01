@@ -547,3 +547,15 @@ func (h *Handler) GetAppDetail(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+// GetAppSwitchingPatternHandler returns app switching pattern analysis
+// GET /api/v1/screentime/analysis/switching-pattern
+func (h *Handler) GetAppSwitchingPatternHandler(c *gin.Context) {
+	pattern, err := h.GetAppSwitchingPattern()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, pattern)
+}
