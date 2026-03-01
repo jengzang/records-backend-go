@@ -228,15 +228,25 @@ func (h *MultiDeviceHandler) GetUserProfile(c *gin.Context) {
 
 	var profile UserProfile
 
-	// Get basic stats
+	// Get basic stats using new query methods
 	phoneConn, _ := h.deviceManager.GetDevice("phone_vivo_x90")
-	computerConn, _ := h.deviceManager.GetDevice("computer_main")
 
-	var phoneDuration, computerDuration int64
-	var phoneActiveDays, computerActiveDays int
-
+	var phoneDuration int64
+	var phoneActiveDays int
 	phoneConn.DB.QueryRow("SELECT SUM(duration_ms), COUNT(DISTINCT date) FROM screentime_daily WHERE package_id != 'ALL'").Scan(&phoneDuration, &phoneActiveDays)
-	computerConn.DB.QueryRow("SELECT SUM(total_duration_seconds) * 1000, COUNT(DISTINCT date) FROM manictime_daily").Scan(&computerDuration, &computerActiveDays)
+
+	// Use GetComputerSummary for computer data
+	computerSummary, err := h.deviceManager.GetComputerSummary("computer_main")
+	var computerDuration int64
+	var computerActiveDays int
+	if err == nil {
+		if totalDuration, ok := computerSummary["totalDurationMS"].(int64); ok {
+			computerDuration = totalDuration
+		}
+		if activeDays, ok := computerSummary["activeDays"].(int); ok {
+			computerActiveDays = activeDays
+		}
+	}
 
 	totalDuration := phoneDuration + computerDuration
 	avgDays := phoneActiveDays
