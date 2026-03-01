@@ -212,3 +212,9 @@ func (s *Service) GetExerciseAnalysis() (*analysis.ExerciseAnalysis, error) {
 func (s *Service) GetSleepAnalysis() (*analysis.SleepAnalysis, error) {
 	return analysis.GetSleepAnalysis(s.repo.db)
 }
+
+// GetSeasonalTrends retrieves seasonal health trends analysis
+func (s *Service) GetSeasonalTrends() (*analysis.SeasonalTrends, error) {
+	return analysis.GetSeasonalTrends(s.repo.db)
+}
+

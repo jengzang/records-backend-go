@@ -563,3 +563,15 @@ func (h *Handler) GetSleepAnalysis(c *gin.Context) {
 
 	c.JSON(http.StatusOK, analysis)
 }
+
+// GetSeasonalTrends handles GET /api/v1/health/analysis/seasonal-trends
+func (h *Handler) GetSeasonalTrends(c *gin.Context) {
+	trends, err := h.service.GetSeasonalTrends()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, trends)
+}
+

@@ -386,6 +386,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				healthGroup.GET("/analysis/weight-bmi", healthHandler.GetWeightBMIAnalysis)
 				healthGroup.GET("/analysis/exercise", healthHandler.GetExerciseAnalysis)
 				healthGroup.GET("/analysis/sleep", healthHandler.GetSleepAnalysis)
+				healthGroup.GET("/analysis/seasonal-trends", healthHandler.GetSeasonalTrends)
 
 				// Heart rate analysis
 				healthGroup.GET("/analysis/heartrate/zones", healthHandler.GetHeartRateZones)
