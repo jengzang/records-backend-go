@@ -152,6 +152,17 @@ go-backend/
 - 应用切换模式识别 ✨
   - 多任务/专注/碎片化模式识别
   - 切换路径分析
+  - 应用切换矩阵
+- 深夜使用习惯分析 ✨ NEW
+  - 22:00-02:00时段使用分析
+  - 睡眠影响评估(影响评分、睡眠损失估算)
+  - 工作日vs周末对比
+  - 个性化改善建议
+- 应用使用相关性分析 ✨ NEW
+  - 应用共现分析(30分钟时间窗口)
+  - 关联规则挖掘(置信度、提升度)
+  - 频繁模式识别
+  - 网络图可视化
   - 切换频率统计
   - 应用切换矩阵
 
@@ -344,6 +355,8 @@ HEALTH_DB_PATH=./data/health.db         # 健康数据库路径
 - `GET /api/v1/screentime/analysis/weekday-weekend` - 工作日周末对比
 - `GET /api/v1/screentime/analysis/productivity-entertainment-trend` - 生产力娱乐趋势
 - `GET /api/v1/screentime/analysis/switching-pattern` - 切换模式分析
+- `GET /api/v1/screentime/analysis/late-night` - 深夜使用习惯分析 ✨ NEW
+- `GET /api/v1/screentime/analysis/app-correlation` - 应用使用相关性分析 ✨ NEW
 
 **跨设备分析**:
 - `GET /api/v1/screentime/cross-device/comparison` - 设备对比
@@ -460,6 +473,40 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ## 更新日志
 
+### 2026-03-02 (晚) - ScreenTime模块新增2个高级分析功能 ✨
+
+**新增功能**:
+
+1. **深夜使用习惯分析** (`/api/v1/screentime/analysis/late-night`)
+   - 深夜时段定义: 22:00-02:00
+   - 总体模式分析(总时长、平均时长、活跃天数、频率)
+   - 频率分析(每周/每月频率、一致性评分、趋势)
+   - 应用使用详情(分类、时长、占比、影响等级)
+   - 时间分布(按小时统计)
+   - 睡眠影响评估(影响评分0-100、睡眠损失估算、蓝光暴露、风险等级)
+   - 工作日vs周末对比
+   - 个性化改善建议
+
+2. **应用使用相关性分析** (`/api/v1/screentime/analysis/app-correlation`)
+   - 应用共现分析(30分钟时间窗口)
+   - 关联指标计算(置信度、提升度、关联评分)
+   - 频繁模式识别(3应用组合)
+   - 时间窗口统计
+   - 网络图构建(节点+边)
+   - 关联模式判断(并发/顺序/交替)
+   - 典型场景识别(社交/娱乐/工作/购物等)
+   - 生成关联洞察
+
+**前端实现**:
+- 新增 LateNightUsage.tsx 页面(睡眠影响评估、时段分布、改善建议)
+- 新增 AppCorrelation.tsx 页面(关联对表格、频繁模式、网络图、分布统计)
+- 使用 ECharts 实现网络图可视化
+
+**技术更新**:
+- 新增 2 个 API 端点
+- 新增 2 个分析模块文件
+- 总计: 113+ API 端点
+
 ### 2026-03-02 - 完成所有模块核心功能 ✅
 
 **重大里程碑: 5个模块全部完成核心功能实现**
@@ -471,12 +518,14 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
    - 工作日vs周末详细对比
    - 键盘×屏幕时间跨模块关联分析
 
-2. **ScreenTime 模块增强 (5个新功能)**:
+2. **ScreenTime 模块增强 (7个新功能)**:
    - 时间浪费检测 (工作时段娱乐应用、深夜使用、碎片化检测)
    - 应用依赖度分析 (使用频率、连续天数、依赖度评分)
    - 工作日vs周末对比 (使用时长、应用分布、设备偏好)
    - 生产力/娱乐比例趋势 (周/月/季度趋势)
    - 应用切换模式识别 (多任务/专注/碎片化模式、切换路径、切换矩阵)
+   - 深夜使用习惯分析 (睡眠影响评估、改善建议) ✨ NEW
+   - 应用使用相关性分析 (关联规则挖掘、网络图) ✨ NEW
 
 3. **AppleHealth 模块增强 (3个新功能)**:
    - 体重/BMI管理 (趋势图、健康范围、体重预测)
@@ -497,11 +546,11 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 **项目完成度**:
 - Tracks: 100% (30/30 技能)
 - Keyboard: 100% (11 个端点)
-- ScreenTime: 100% (17 个端点)
+- ScreenTime: 100% (19 个端点)
 - TrainPlane: 100% (18 个端点)
 - AppleHealth: 100% (15 个端点)
 
-**总计**: 111+ API 端点，14 个新增高级分析功能
+**总计**: 113+ API 端点，16 个新增高级分析功能
 
 ### 2026-02-20 - Phase 5: 完成全部30个轨迹分析技能 ✅
 
