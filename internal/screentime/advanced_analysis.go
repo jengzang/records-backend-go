@@ -880,7 +880,7 @@ func (h *Handler) generateWeekdayWeekendInsights(comparison WeekdayWeekendCompar
 	weekdayWork := comparison.Weekday.CategoryDistribution["Productivity"] + comparison.Weekday.CategoryDistribution["Business"]
 	weekendWork := comparison.Weekend.CategoryDistribution["Productivity"] + comparison.Weekend.CategoryDistribution["Business"]
 
-	if weekendWork > weekdayWork*0.5 {
+	if weekendWork > int64(float64(weekdayWork)*0.5) {
 		insights = append(insights, "周末仍有较多工作相关应用使用，建议注意工作生活平衡")
 	}
 

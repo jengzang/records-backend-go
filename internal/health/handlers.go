@@ -520,3 +520,29 @@ func (h *Handler) GetHealthScoreForDate(c *gin.Context) {
 
 	c.JSON(http.StatusOK, score)
 }
+
+// GetWeightBMIAnalysis handles GET /api/v1/health/analysis/weight-bmi
+func (h *Handler) GetWeightBMIAnalysis(c *gin.Context) {
+	startDateStr := c.DefaultQuery("start", time.Now().AddDate(0, -6, 0).Format("2006-01-02"))
+	endDateStr := c.DefaultQuery("end", time.Now().Format("2006-01-02"))
+
+	startDate, err := time.Parse("2006-01-02", startDateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start date format"})
+		return
+	}
+
+	endDate, err := time.Parse("2006-01-02", endDateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end date format"})
+		return
+	}
+
+	analysis, err := h.service.GetWeightBMIAnalysis(startDate, endDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
+}

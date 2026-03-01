@@ -202,3 +202,9 @@ func (s *Service) GetHealthScoreForDate(date time.Time) (*analysis.HealthScore, 
 func (s *Service) GetHealthScoreTrend(startDate, endDate time.Time) ([]analysis.HealthScorePoint, error) {
 	return s.healthScoreCalc.GetHealthScoreTrend(startDate, endDate)
 }
+
+// GetWeightBMIAnalysis retrieves weight and BMI analysis
+func (s *Service) GetWeightBMIAnalysis(startDate, endDate time.Time) (*analysis.WeightBMIAnalysis, error) {
+	// Note: startDate and endDate are currently ignored, but kept for future filtering
+	return analysis.GetWeightBMIAnalysis(s.repo.db)
+}
