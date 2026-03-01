@@ -229,6 +229,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				flightsGroup.GET("/summary", flightsHandler.GetFlightSummary)
 				flightsGroup.GET("/airlines", flightsHandler.GetAirlines)
 				flightsGroup.GET("/date-range", flightsHandler.GetDateRange)
+				flightsGroup.GET("/travel-footprint", flightsHandler.GetTravelFootprint)
 				flightsGroup.GET("/statistics/airlines", flightsHandler.GetAirlineStatistics)
 				flightsGroup.GET("/:id", flightsHandler.GetFlight)
 				flightsGroup.GET("/:id/route", flightsHandler.GetFlightRoute)

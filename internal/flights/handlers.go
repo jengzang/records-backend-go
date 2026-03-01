@@ -308,3 +308,26 @@ func (h *Handler) GetDateRange(c *gin.Context) {
 		"maxDate": maxDate,
 	})
 }
+
+// GetTravelFootprint returns travel footprint analysis
+// GET /api/v1/flights/travel-footprint
+func (h *Handler) GetTravelFootprint(c *gin.Context) {
+	logger.Info("Getting travel footprint", logrus.Fields{
+		"client_ip": c.ClientIP(),
+	})
+
+	footprint, err := h.service.GetTravelFootprint()
+	if err != nil {
+		logger.Error("Failed to get travel footprint", err, nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve travel footprint"})
+		return
+	}
+
+	logger.Info("Travel footprint retrieved", logrus.Fields{
+		"cities_count":    len(footprint.VisitedCities),
+		"countries_count": len(footprint.VisitedCountries),
+		"routes_count":    len(footprint.FlightRoutes),
+	})
+
+	c.JSON(http.StatusOK, footprint)
+}
