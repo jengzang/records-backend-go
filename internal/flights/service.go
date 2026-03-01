@@ -284,3 +284,8 @@ func (s *Service) MatchFlightToTracks(flightID int, tracksDB *sql.DB) ([]FlightT
 
 	return matches, nil
 }
+
+// GetCarbonEmission returns carbon emission analysis
+func (s *Service) GetCarbonEmission() (*CarbonEmissionAnalysis, error) {
+	return GetCarbonEmissionAnalysis()
+}

@@ -331,3 +331,49 @@ func (h *Handler) GetTravelFootprint(c *gin.Context) {
 
 	c.JSON(http.StatusOK, footprint)
 }
+
+// GetTravelStatisticsEnhanced returns enhanced travel statistics
+// GET /api/v1/flights/statistics/enhanced
+func (h *Handler) GetTravelStatisticsEnhanced(c *gin.Context) {
+	logger.Info("Getting enhanced travel statistics", logrus.Fields{
+		"client_ip": c.ClientIP(),
+	})
+
+	stats, err := h.service.GetTravelStatisticsEnhanced()
+	if err != nil {
+		logger.Error("Failed to get enhanced travel statistics", err, nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve enhanced statistics"})
+		return
+	}
+
+	logger.Info("Enhanced travel statistics retrieved", logrus.Fields{
+		"yearly_records":    len(stats.MileageRankings.ByYear),
+		"monthly_records":   len(stats.MonthlyBreakdown),
+		"achievements":      len(stats.Achievements),
+	})
+
+	c.JSON(http.StatusOK, stats)
+}
+
+// GetCarbonEmission returns carbon emission analysis
+// GET /api/v1/flights/carbon-emission
+func (h *Handler) GetCarbonEmission(c *gin.Context) {
+	logger.Info("Getting carbon emission analysis", logrus.Fields{
+		"client_ip": c.ClientIP(),
+	})
+
+	analysis, err := h.service.GetCarbonEmission()
+	if err != nil {
+		logger.Error("Failed to get carbon emission analysis", err, nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve carbon emission analysis"})
+		return
+	}
+
+	logger.Info("Carbon emission analysis retrieved", logrus.Fields{
+		"total_emission":   analysis.TotalEmission,
+		"flight_emission":  analysis.FlightEmission,
+		"railway_emission": analysis.RailwayEmission,
+	})
+
+	c.JSON(http.StatusOK, analysis)
+}
