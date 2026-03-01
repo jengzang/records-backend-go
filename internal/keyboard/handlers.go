@@ -35,7 +35,7 @@ func (h *Handler) Close() error {
 	return h.db.Close()
 }
 
-	// RegisterRoutes registers all keyboard routes
+		// RegisterRoutes registers all keyboard routes
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	keyboard := r.Group("/keyboard")
 	{
@@ -52,6 +52,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		keyboard.GET("/statistics/typing_behavior", h.GetTypingBehavior)
 		keyboard.GET("/statistics/productivity", h.GetProductivityMetrics)
 		keyboard.GET("/statistics/hand_balance", h.GetHandBalance)
+		keyboard.GET("/statistics/weekday_weekend", h.GetWeekdayWeekendComparison)
 
 		// Visualization data endpoints
 		keyboard.GET("/heatmap/keyboard", h.GetKeyboardHeatmap)
@@ -725,4 +726,16 @@ func (h *Handler) GetHandBalance(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+// GetWeekdayWeekendComparison returns weekday vs weekend keyboard usage comparison
+// GET /api/v1/keyboard/statistics/weekday_weekend
+func (h *Handler) GetWeekdayWeekendComparison(c *gin.Context) {
+	comparison, err := analysis.GetWeekdayWeekendComparison(h.db, GetKeyCategory, GetKeyHand, GetKeyName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, comparison)
 }
