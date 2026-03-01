@@ -276,8 +276,23 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "screentime module unavailable"})
 			})
 		} else {
+			// Initialize device manager for cross-device analysis
+			deviceManager, err := screentime.NewDeviceManager(cfg.ScreentimeDevicesDB, cfg.ScreentimeDataDir)
+			if err != nil {
+				logger.Warn("Failed to initialize device manager", logrus.Fields{
+					"error": err.Error(),
+				})
+			}
+
+			// Create multi-device handler
+			var multiDeviceHandler *screentime.MultiDeviceHandler
+			if deviceManager != nil {
+				multiDeviceHandler = screentime.NewMultiDeviceHandler(deviceManager)
+			}
+
 			st := api.Group("/screentime")
 			{
+				// Basic single-device endpoints
 				st.GET("/summary", screentimeHandler.GetSummary)
 				st.GET("/daily", screentimeHandler.GetDailyStats)
 				st.GET("/rankings", screentimeHandler.GetRankings)
@@ -285,6 +300,29 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				st.GET("/hourly", screentimeHandler.GetHourlyStats)
 				st.GET("/trends", screentimeHandler.GetTrends)
 				st.GET("/app/:packageId", screentimeHandler.GetAppDetail)
+
+				// Cross-device analysis endpoints (if device manager is available)
+				if multiDeviceHandler != nil {
+					crossDevice := st.Group("/cross-device")
+					{
+						crossDevice.GET("/comparison", multiDeviceHandler.GetCrossDeviceComparison)
+						crossDevice.GET("/work-life-balance", multiDeviceHandler.GetWorkLifeBalance)
+						crossDevice.GET("/total-screentime", multiDeviceHandler.GetTotalScreentime)
+						crossDevice.GET("/switching-patterns", multiDeviceHandler.GetDeviceSwitchingPatterns)
+						crossDevice.GET("/app-ecosystem", multiDeviceHandler.GetAppEcosystem)
+						crossDevice.GET("/time-allocation", multiDeviceHandler.GetTimeAllocation)
+						crossDevice.GET("/user-profile", multiDeviceHandler.GetUserProfile)
+						crossDevice.GET("/productivity-deep", multiDeviceHandler.GetProductivityDeep)
+						crossDevice.GET("/focus-analysis", multiDeviceHandler.GetFocusAnalysis)
+						crossDevice.GET("/recommendations", multiDeviceHandler.GetCrossDeviceRecommendations)
+					}
+
+					// Multi-device endpoints (device parameter support)
+					st.GET("/multi/summary", multiDeviceHandler.GetSummary)
+					st.GET("/multi/daily", multiDeviceHandler.GetDailyStats)
+					st.GET("/multi/rankings", multiDeviceHandler.GetRankings)
+					st.GET("/devices", multiDeviceHandler.ListDevices)
+				}
 			}
 		}
 
