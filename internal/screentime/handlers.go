@@ -559,3 +559,15 @@ func (h *Handler) GetAppSwitchingPatternHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, pattern)
 }
+
+// GetLateNightUsageAnalysisHandler returns late night usage analysis
+// GET /api/v1/screentime/analysis/late-night
+func (h *Handler) GetLateNightUsageAnalysisHandler(c *gin.Context) {
+	analysis, err := h.GetLateNightUsageAnalysis()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
+}

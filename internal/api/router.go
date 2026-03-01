@@ -312,6 +312,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 					analysis.GET("/weekday-weekend", screentimeHandler.GetWeekdayWeekendComparison)
 					analysis.GET("/productivity-entertainment-trend", screentimeHandler.GetProductivityEntertainmentTrend)
 					analysis.GET("/switching-pattern", screentimeHandler.GetAppSwitchingPatternHandler)
+					analysis.GET("/late-night", screentimeHandler.GetLateNightUsageAnalysisHandler)
 				}
 
 				// Cross-device analysis endpoints (if device manager is available)
