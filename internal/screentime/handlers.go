@@ -571,3 +571,15 @@ func (h *Handler) GetLateNightUsageAnalysisHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, analysis)
 }
+
+// GetAppCorrelationAnalysisHandler returns app correlation analysis
+// GET /api/v1/screentime/analysis/app-correlation
+func (h *Handler) GetAppCorrelationAnalysisHandler(c *gin.Context) {
+	analysis, err := h.GetAppCorrelationAnalysis()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
+}
