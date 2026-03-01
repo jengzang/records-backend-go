@@ -1,6 +1,7 @@
 package screentime
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -80,81 +81,73 @@ func (h *MultiDeviceHandler) GetAppEcosystem(c *gin.Context) {
 	}
 
 	var ecosystem AppEcosystem
+	ecosystem.CrossPlatformApps = []string{}
+	ecosystem.PhoneOnlyApps = []string{}
+	ecosystem.ComputerOnlyApps = []string{}
+	ecosystem.Insights = []string{}
 
 	// Get phone apps
-	phoneConn, _ := h.deviceManager.GetDevice("phone_vivo_x90")
-	phoneApps := make(map[string]bool)
-	rows, _ := phoneConn.DB.Query("SELECT DISTINCT app_name FROM screentime_apps WHERE package_id != 'ALL' LIMIT 100")
-	for rows.Next() {
-		var appName string
-		rows.Scan(&appName)
-		phoneApps[appName] = true
+	phoneConn, err := h.deviceManager.GetDevice("phone_vivo_x90")
+	if err != nil || phoneConn == nil || phoneConn.DB == nil {
+		c.JSON(http.StatusOK, ecosystem)
+		return
 	}
-	rows.Close()
+
+	phoneAppsList := []string{}
+	rows, err := phoneConn.DB.Query("SELECT DISTINCT app_name FROM screentime_apps WHERE package_id != 'ALL' ORDER BY app_name LIMIT 500")
+	if err == nil && rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var appName string
+			if err := rows.Scan(&appName); err == nil && appName != "" {
+				phoneAppsList = append(phoneAppsList, appName)
+			}
+		}
+	}
 
 	// Get computer apps
-	computerConn, _ := h.deviceManager.GetDevice("computer_main")
-	computerApps := make(map[string]bool)
-	rows, _ = computerConn.DB.Query("SELECT DISTINCT application FROM manictime_apps LIMIT 100")
-	for rows.Next() {
-		var appName string
-		rows.Scan(&appName)
-		computerApps[appName] = true
+	computerConn, err := h.deviceManager.GetDevice("computer_main")
+	if err != nil || computerConn == nil || computerConn.DB == nil {
+		c.JSON(http.StatusOK, ecosystem)
+		return
 	}
-	rows.Close()
 
-	// Find cross-platform apps (simplified: check for common names)
-	crossPlatformNames := []string{"Edge", "Chrome", "微信", "QQ", "Telegram"}
-	for _, name := range crossPlatformNames {
-		foundInPhone := false
-		foundInComputer := false
-
-		for phoneApp := range phoneApps {
-			if contains(phoneApp, name) {
-				foundInPhone = true
-				break
+	computerAppsList := []string{}
+	rows2, err := computerConn.DB.Query("SELECT DISTINCT application FROM manictime_apps WHERE application != '' ORDER BY application LIMIT 500")
+	if err == nil && rows2 != nil {
+		defer rows2.Close()
+		for rows2.Next() {
+			var appName string
+			if err := rows2.Scan(&appName); err == nil && appName != "" && appName != " " {
+				computerAppsList = append(computerAppsList, appName)
 			}
 		}
-
-		for computerApp := range computerApps {
-			if contains(computerApp, name) {
-				foundInComputer = true
-				break
-			}
-		}
-
-		if foundInPhone && foundInComputer {
-			ecosystem.CrossPlatformApps = append(ecosystem.CrossPlatformApps, name)
-		}
 	}
 
-	// Sample phone-only and computer-only apps
-	count := 0
-	for app := range phoneApps {
-		if count >= 10 {
-			break
-		}
-		ecosystem.PhoneOnlyApps = append(ecosystem.PhoneOnlyApps, app)
-		count++
-	}
+	// Use app normalizer to find cross-platform apps
+	normalizer := NewAppNameNormalizer()
+	ecosystem.CrossPlatformApps = normalizer.FindCrossPlatformApps(phoneAppsList, computerAppsList)
+	ecosystem.PhoneOnlyApps = normalizer.FilterPhoneOnlyApps(phoneAppsList, computerAppsList, 20)
+	ecosystem.ComputerOnlyApps = normalizer.FilterComputerOnlyApps(phoneAppsList, computerAppsList, 20)
 
-	count = 0
-	for app := range computerApps {
-		if count >= 10 {
-			break
-		}
-		ecosystem.ComputerOnlyApps = append(ecosystem.ComputerOnlyApps, app)
-		count++
-	}
-
-	ecosystem.TotalApps = len(phoneApps) + len(computerApps)
+	ecosystem.TotalApps = len(phoneAppsList) + len(computerAppsList)
 	ecosystem.CrossPlatformCount = len(ecosystem.CrossPlatformApps)
 
 	// Generate insights
-	ecosystem.Insights = []string{
-		"跨平台应用数量: " + string(rune(ecosystem.CrossPlatformCount+'0')),
-		"手机专属应用占比较高，主要用于社交和娱乐",
-		"电脑专属应用主要用于开发和办公",
+	phoneOnlyCount := len(ecosystem.PhoneOnlyApps)
+	computerOnlyCount := len(ecosystem.ComputerOnlyApps)
+	crossPlatformCount := ecosystem.CrossPlatformCount
+
+	ecosystem.Insights = append(ecosystem.Insights,
+		fmt.Sprintf("跨平台应用数量: %d 个", crossPlatformCount),
+		fmt.Sprintf("手机专属应用: %d 个，主要用于社交和娱乐", phoneOnlyCount),
+		fmt.Sprintf("电脑专属应用: %d 个，主要用于开发和办公", computerOnlyCount),
+	)
+
+	if crossPlatformCount > 0 {
+		ecosystem.Insights = append(ecosystem.Insights,
+			fmt.Sprintf("跨平台应用占比: %.1f%%", float64(crossPlatformCount)/float64(ecosystem.TotalApps)*100),
+		)
 	}
 
 	c.JSON(http.StatusOK, ecosystem)
@@ -304,8 +297,3 @@ func (h *MultiDeviceHandler) GetUserProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, profile)
 }
 
-// Helper function
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr))
-}
