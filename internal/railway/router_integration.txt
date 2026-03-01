@@ -1,0 +1,39 @@
+// Railway module integration code to be added to router.go after flights module
+
+// Railway module
+railwayDB, err := database.OpenDB(cfg.RailwayDBPath)
+if err != nil {
+	logger.Warn("Failed to open railway database", logrus.Fields{
+		"error": err.Error(),
+		"path":  cfg.RailwayDBPath,
+	})
+	// Create fallback route
+	railwayFallback := api.Group("/railway")
+	{
+		railwayFallback.GET("", func(c *gin.Context) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "railway module unavailable"})
+		})
+	}
+} else {
+	logger.Info("Railway database opened successfully", logrus.Fields{
+		"path": cfg.RailwayDBPath,
+	})
+
+	// Initialize railway module
+	railwayRepo := railway.NewRepository(railwayDB)
+	railwayService := railway.NewService(railwayRepo)
+	railwayHandler := railway.NewHandler(railwayService)
+
+	// Register railway routes
+	railwayGroup := api.Group("/railway")
+	{
+		railwayGroup.GET("/lines", railwayHandler.GetAllLines)
+		railwayGroup.GET("/lines/:id", railwayHandler.GetLineByID)
+		railwayGroup.GET("/lines/:id/route", railwayHandler.GetLineRoute)
+		railwayGroup.GET("/trips", railwayHandler.GetAllTrips)
+		railwayGroup.GET("/trips/:id", railwayHandler.GetTripByID)
+		railwayGroup.POST("/trips", railwayHandler.CreateTrip)
+		railwayGroup.GET("/statistics", railwayHandler.GetStatistics)
+		railwayGroup.POST("/upload-kml", railwayHandler.UploadKML)
+	}
+}

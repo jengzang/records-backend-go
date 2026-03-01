@@ -12,6 +12,7 @@ import (
 	"github.com/jengzang/records-backend-go/internal/keyboard"
 	"github.com/jengzang/records-backend-go/internal/logger"
 	"github.com/jengzang/records-backend-go/internal/middleware"
+	"github.com/jengzang/records-backend-go/internal/railway"
 	"github.com/jengzang/records-backend-go/internal/repository"
 	"github.com/jengzang/records-backend-go/internal/screentime"
 	"github.com/jengzang/records-backend-go/internal/service"
@@ -233,6 +234,39 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			}
 		}
 
+
+		// Railway module
+		railwayDB, err := database.OpenDB(cfg.RailwayDBPath)
+		if err != nil {
+			logger.Warn("Failed to open railway database", logrus.Fields{
+				"error": err.Error(),
+				"path":  cfg.RailwayDBPath,
+			})
+			railwayFallback := api.Group("/railway")
+			{
+				railwayFallback.GET("", func(c *gin.Context) {
+					c.JSON(http.StatusServiceUnavailable, gin.H{"error": "railway module unavailable"})
+				})
+			}
+		} else {
+			logger.Info("Railway database opened successfully", logrus.Fields{
+				"path": cfg.RailwayDBPath,
+			})
+			railwayRepo := railway.NewRepository(railwayDB)
+			railwayService := railway.NewService(railwayRepo)
+			railwayHandler := railway.NewHandler(railwayService)
+			railwayGroup := api.Group("/railway")
+			{
+				railwayGroup.GET("/lines", railwayHandler.GetAllLines)
+				railwayGroup.GET("/lines/:id", railwayHandler.GetLineByID)
+				railwayGroup.GET("/lines/:id/route", railwayHandler.GetLineRoute)
+				railwayGroup.GET("/trips", railwayHandler.GetAllTrips)
+				railwayGroup.GET("/trips/:id", railwayHandler.GetTripByID)
+				railwayGroup.POST("/trips", railwayHandler.CreateTrip)
+				railwayGroup.GET("/statistics", railwayHandler.GetStatistics)
+				railwayGroup.POST("/upload-kml", railwayHandler.UploadKML)
+			}
+		}
 		// 屏幕使用时间接口
 		screentimeHandler, err := screentime.NewHandler(cfg.ScreentimeDBPath)
 		if err != nil {
