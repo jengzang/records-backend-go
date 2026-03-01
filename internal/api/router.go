@@ -301,6 +301,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				st.GET("/trends", screentimeHandler.GetTrends)
 				st.GET("/app/:packageId", screentimeHandler.GetAppDetail)
 
+				// Advanced analysis endpoints
+				analysis := st.Group("/analysis")
+				{
+					analysis.GET("/time-waste", screentimeHandler.GetTimeWasteDetection)
+					analysis.GET("/app-dependency", screentimeHandler.GetAppDependencyAnalysis)
+					analysis.GET("/weekday-weekend", screentimeHandler.GetWeekdayWeekendComparison)
+					analysis.GET("/productivity-entertainment-trend", screentimeHandler.GetProductivityEntertainmentTrend)
+				}
+
 				// Cross-device analysis endpoints (if device manager is available)
 				if multiDeviceHandler != nil {
 					crossDevice := st.Group("/cross-device")
