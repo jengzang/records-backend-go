@@ -9,6 +9,7 @@ import (
 	"github.com/jengzang/records-backend-go/internal/database"
 	"github.com/jengzang/records-backend-go/internal/flights"
 	"github.com/jengzang/records-backend-go/internal/handler"
+	"github.com/jengzang/records-backend-go/internal/health"
 	"github.com/jengzang/records-backend-go/internal/keyboard"
 	"github.com/jengzang/records-backend-go/internal/logger"
 	"github.com/jengzang/records-backend-go/internal/middleware"
@@ -287,12 +288,58 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			}
 		}
 
-		// Apple健康数据接口 (placeholder)
-		healthData := api.Group("/health-data")
-		{
-			healthData.GET("/stats", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{"message": "health data stats - not implemented yet"})
+		// Apple健康数据接口
+		healthDB, err := database.OpenDB(cfg.HealthDBPath)
+		if err != nil {
+			logger.Warn("Failed to open health database", logrus.Fields{
+				"db_path": cfg.HealthDBPath,
+				"error":   err.Error(),
 			})
+			// Provide placeholder endpoint
+			healthGroup := api.Group("/health")
+			{
+				healthGroup.GET("", func(c *gin.Context) {
+					c.JSON(http.StatusServiceUnavailable, gin.H{"error": "health module unavailable"})
+				})
+			}
+		} else {
+			logger.Info("Health database initialized", logrus.Fields{
+				"db_path": cfg.HealthDBPath,
+			})
+
+			// Initialize health module
+			healthHandler := health.NewHandler(healthDB)
+
+			// Register routes
+			healthGroup := api.Group("/health")
+			{
+				// Basic queries
+				healthGroup.GET("/summary", healthHandler.GetSummary)
+				healthGroup.GET("/records", healthHandler.GetRecords)
+				healthGroup.GET("/workouts", healthHandler.GetWorkouts)
+				healthGroup.GET("/workouts/:id", healthHandler.GetWorkout)
+				healthGroup.GET("/workouts/:id/route", healthHandler.GetWorkoutRoute)
+
+				// Statistics
+				healthGroup.GET("/statistics/daily", healthHandler.GetDailyStatistics)
+				healthGroup.GET("/statistics/weekly", healthHandler.GetWeeklyStatistics)
+				healthGroup.GET("/statistics/monthly", healthHandler.GetMonthlyStatistics)
+				healthGroup.GET("/statistics/trends", healthHandler.GetTrends)
+				healthGroup.GET("/statistics/sleep", healthHandler.GetSleepStatistics)
+
+				// Advanced analysis
+				healthGroup.GET("/analysis/activity-patterns", healthHandler.GetActivityPatterns)
+				healthGroup.GET("/analysis/health-score", healthHandler.GetHealthScoreForDate)
+
+				// Heart rate analysis
+				healthGroup.GET("/analysis/heartrate/zones", healthHandler.GetHeartRateZones)
+				healthGroup.GET("/analysis/heartrate/anomalies", healthHandler.GetHeartRateAnomalies)
+				healthGroup.GET("/analysis/heartrate/resting", healthHandler.GetRestingHeartRate)
+
+				// Activity patterns
+				healthGroup.GET("/analysis/patterns/daily", healthHandler.GetDailyActivityPattern)
+				healthGroup.GET("/analysis/patterns/weekly", healthHandler.GetWeeklyActivityPattern)
+			}
 		}
 
 		// 管理员接口
