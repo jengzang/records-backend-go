@@ -53,6 +53,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		keyboard.GET("/statistics/productivity", h.GetProductivityMetrics)
 		keyboard.GET("/statistics/hand_balance", h.GetHandBalance)
 		keyboard.GET("/statistics/weekday_weekend", h.GetWeekdayWeekendComparison)
+		keyboard.GET("/cross_module", h.GetCrossModuleAnalysis)
 
 		// Visualization data endpoints
 		keyboard.GET("/heatmap/keyboard", h.GetKeyboardHeatmap)
@@ -738,4 +739,26 @@ func (h *Handler) GetWeekdayWeekendComparison(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, comparison)
+}
+
+// GetCrossModuleAnalysis returns cross-module analysis with screentime
+// GET /api/v1/keyboard/cross_module
+func (h *Handler) GetCrossModuleAnalysis(c *gin.Context) {
+	// Get screentime database path from config
+	screentimeDBPath := "data/screentime.db"
+
+	screentimeDB, err := sql.Open("sqlite3", screentimeDBPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open screentime database"})
+		return
+	}
+	defer screentimeDB.Close()
+
+	analysis, err := GetCrossModuleAnalysis(h.db, screentimeDB)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
 }
