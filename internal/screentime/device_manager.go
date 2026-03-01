@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+
+	"github.com/jengzang/records-backend-go/internal/logger"
+	"github.com/sirupsen/logrus"
 )
 
 // DeviceManager manages multiple screentime data sources
@@ -44,8 +47,16 @@ type Device struct {
 
 // NewDeviceManager creates a new device manager
 func NewDeviceManager(devicesDBPath, dataDir string) (*DeviceManager, error) {
+	logger.Info("Initializing device manager", logrus.Fields{
+		"devices_db": devicesDBPath,
+		"data_dir":   dataDir,
+	})
+
 	db, err := sql.Open("sqlite", devicesDBPath)
 	if err != nil {
+		logger.Error("Failed to open devices database", err, logrus.Fields{
+			"db_path": devicesDBPath,
+		})
 		return nil, fmt.Errorf("failed to open devices database: %w", err)
 	}
 
@@ -57,8 +68,13 @@ func NewDeviceManager(devicesDBPath, dataDir string) (*DeviceManager, error) {
 
 	// Load all active devices
 	if err := dm.loadDevices(); err != nil {
+		logger.Error("Failed to load devices", err, nil)
 		return nil, fmt.Errorf("failed to load devices: %w", err)
 	}
+
+	logger.Info("Device manager initialized successfully", logrus.Fields{
+		"device_count": len(dm.connections),
+	})
 
 	return dm, nil
 }
@@ -68,14 +84,19 @@ func (dm *DeviceManager) loadDevices() error {
 	query := `SELECT id, name, type, db_path, data_format, is_active FROM devices WHERE is_active = 1`
 	rows, err := dm.devicesDB.Query(query)
 	if err != nil {
+		logger.Error("Failed to query devices", err, nil)
 		return err
 	}
 	defer rows.Close()
 
+	loadedCount := 0
 	for rows.Next() {
 		var device Device
 		err := rows.Scan(&device.ID, &device.Name, &device.Type, &device.DBPath, &device.DataFormat, &device.IsActive)
 		if err != nil {
+			logger.Warn("Failed to scan device row", logrus.Fields{
+				"error": err.Error(),
+			})
 			continue
 		}
 
@@ -83,7 +104,10 @@ func (dm *DeviceManager) loadDevices() error {
 		dbPath := filepath.Join(dm.dataDir, device.DBPath)
 		db, err := sql.Open("sqlite", dbPath)
 		if err != nil {
-			fmt.Printf("Warning: failed to open database for device %s: %v\n", device.ID, err)
+			logger.Error("Failed to open device database", err, logrus.Fields{
+				"device_id": device.ID,
+				"db_path":   dbPath,
+			})
 			continue
 		}
 
@@ -98,7 +122,18 @@ func (dm *DeviceManager) loadDevices() error {
 			IsActive:   device.IsActive,
 		}
 		dm.mu.Unlock()
+
+		logger.Info("Device loaded successfully", logrus.Fields{
+			"device_id":   device.ID,
+			"device_name": device.Name,
+			"device_type": device.Type,
+		})
+		loadedCount++
 	}
+
+	logger.Info("Devices loaded", logrus.Fields{
+		"count": loadedCount,
+	})
 
 	return rows.Err()
 }
@@ -110,10 +145,27 @@ func (dm *DeviceManager) GetDevice(id string) (*DeviceConnection, error) {
 
 	conn, exists := dm.connections[id]
 	if !exists {
+		logger.Error("Device not found", nil, logrus.Fields{
+			"device_id":         id,
+			"available_devices": dm.getDeviceIDs(),
+		})
 		return nil, fmt.Errorf("device not found: %s", id)
 	}
 
+	logger.Debug("Device retrieved", logrus.Fields{
+		"device_id": id,
+	})
+
 	return conn, nil
+}
+
+// getDeviceIDs returns a list of all device IDs (must be called with lock held)
+func (dm *DeviceManager) getDeviceIDs() []string {
+	ids := make([]string, 0, len(dm.connections))
+	for id := range dm.connections {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 // ListDevices returns all registered devices
@@ -166,6 +218,13 @@ func (dm *DeviceManager) ListDevices() ([]*Device, error) {
 
 // RegisterDevice registers a new device
 func (dm *DeviceManager) RegisterDevice(device *Device) error {
+	logger.Info("Registering device", logrus.Fields{
+		"device_id":   device.ID,
+		"device_name": device.Name,
+		"device_type": device.Type,
+		"db_path":     device.DBPath,
+	})
+
 	query := `
 	INSERT INTO devices (id, name, type, db_path, data_format, is_active)
 	VALUES (?, ?, ?, ?, ?, ?)
@@ -173,11 +232,23 @@ func (dm *DeviceManager) RegisterDevice(device *Device) error {
 
 	_, err := dm.devicesDB.Exec(query, device.ID, device.Name, device.Type, device.DBPath, device.DataFormat, device.IsActive)
 	if err != nil {
+		logger.Error("Failed to register device", err, logrus.Fields{
+			"device_id": device.ID,
+		})
 		return fmt.Errorf("failed to register device: %w", err)
 	}
 
 	// Reload devices to include the new one
-	return dm.loadDevices()
+	if err := dm.loadDevices(); err != nil {
+		logger.Error("Failed to reload devices after registration", err, nil)
+		return err
+	}
+
+	logger.Info("Device registered successfully", logrus.Fields{
+		"device_id": device.ID,
+	})
+
+	return nil
 }
 
 // GetAllActiveConnections returns all active device connections

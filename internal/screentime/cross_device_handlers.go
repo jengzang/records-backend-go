@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jengzang/records-backend-go/internal/logger"
+	"github.com/sirupsen/logrus"
 )
 
 // CrossDeviceComparison represents device usage comparison
@@ -54,6 +56,10 @@ type WorkLifeBalance struct {
 // GetCrossDeviceComparison returns device usage comparison
 // GET /api/v1/screentime/cross-device/comparison
 func (h *MultiDeviceHandler) GetCrossDeviceComparison(c *gin.Context) {
+	logger.Info("Cross-device comparison requested", logrus.Fields{
+		"client_ip": c.ClientIP(),
+	})
+
 	var comparison CrossDeviceComparison
 
 	// Get phone data
@@ -68,17 +74,25 @@ func (h *MultiDeviceHandler) GetCrossDeviceComparison(c *gin.Context) {
 		WHERE package_id != 'ALL'
 		`
 		var totalDuration, activeDays, totalApps sql.NullInt64
-		phoneConn.DB.QueryRow(query).Scan(&totalDuration, &activeDays, &totalApps)
+		if err := phoneConn.DB.QueryRow(query).Scan(&totalDuration, &activeDays, &totalApps); err != nil {
+			logger.Error("Failed to query phone data", err, logrus.Fields{
+				"device": "phone_vivo_x90",
+			})
+		} else {
+			comparison.Phone.TotalDuration = totalDuration.Int64
+			comparison.Phone.ActiveDays = int(activeDays.Int64)
+			comparison.Phone.TotalApps = int(totalApps.Int64)
+			if activeDays.Int64 > 0 {
+				comparison.Phone.AvgDailyDuration = float64(totalDuration.Int64) / float64(activeDays.Int64)
+			}
 
-		comparison.Phone.TotalDuration = totalDuration.Int64
-		comparison.Phone.ActiveDays = int(activeDays.Int64)
-		comparison.Phone.TotalApps = int(totalApps.Int64)
-		if activeDays.Int64 > 0 {
-			comparison.Phone.AvgDailyDuration = float64(totalDuration.Int64) / float64(activeDays.Int64)
+			// Get top app
+			phoneConn.DB.QueryRow("SELECT app_name FROM screentime_apps WHERE package_id != 'ALL' ORDER BY total_duration_ms DESC LIMIT 1").Scan(&comparison.Phone.TopApp)
 		}
-
-		// Get top app
-		phoneConn.DB.QueryRow("SELECT app_name FROM screentime_apps WHERE package_id != 'ALL' ORDER BY total_duration_ms DESC LIMIT 1").Scan(&comparison.Phone.TopApp)
+	} else {
+		logger.Warn("Phone device not available", logrus.Fields{
+			"error": err.Error(),
+		})
 	}
 
 	// Get computer data
@@ -92,17 +106,25 @@ func (h *MultiDeviceHandler) GetCrossDeviceComparison(c *gin.Context) {
 		FROM manictime_daily
 		`
 		var totalDuration, activeDays, totalApps sql.NullInt64
-		computerConn.DB.QueryRow(query).Scan(&totalDuration, &activeDays, &totalApps)
+		if err := computerConn.DB.QueryRow(query).Scan(&totalDuration, &activeDays, &totalApps); err != nil {
+			logger.Error("Failed to query computer data", err, logrus.Fields{
+				"device": "computer_main",
+			})
+		} else {
+			comparison.Computer.TotalDuration = totalDuration.Int64
+			comparison.Computer.ActiveDays = int(activeDays.Int64)
+			comparison.Computer.TotalApps = int(totalApps.Int64)
+			if activeDays.Int64 > 0 {
+				comparison.Computer.AvgDailyDuration = float64(totalDuration.Int64) / float64(activeDays.Int64)
+			}
 
-		comparison.Computer.TotalDuration = totalDuration.Int64
-		comparison.Computer.ActiveDays = int(activeDays.Int64)
-		comparison.Computer.TotalApps = int(totalApps.Int64)
-		if activeDays.Int64 > 0 {
-			comparison.Computer.AvgDailyDuration = float64(totalDuration.Int64) / float64(activeDays.Int64)
+			// Get top app
+			computerConn.DB.QueryRow("SELECT application FROM manictime_apps ORDER BY total_duration_seconds DESC LIMIT 1").Scan(&comparison.Computer.TopApp)
 		}
-
-		// Get top app
-		computerConn.DB.QueryRow("SELECT application FROM manictime_apps ORDER BY total_duration_seconds DESC LIMIT 1").Scan(&comparison.Computer.TopApp)
+	} else {
+		logger.Warn("Computer device not available", logrus.Fields{
+			"error": err.Error(),
+		})
 	}
 
 	// Calculate totals
@@ -127,6 +149,12 @@ func (h *MultiDeviceHandler) GetCrossDeviceComparison(c *gin.Context) {
 		comparison.Insights = append(comparison.Insights, "日均总屏幕时间超过8小时，建议减少使用")
 	}
 	comparison.Insights = append(comparison.Insights, "手机最常用应用是"+comparison.Phone.TopApp+"，电脑最常用是"+comparison.Computer.TopApp)
+
+	logger.Info("Cross-device comparison completed", logrus.Fields{
+		"phone_apps":    comparison.Phone.TotalApps,
+		"computer_apps": comparison.Computer.TotalApps,
+		"total_duration_hours": float64(comparison.Total.TotalDuration) / 3600000,
+	})
 
 	c.JSON(http.StatusOK, comparison)
 }
