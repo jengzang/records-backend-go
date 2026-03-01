@@ -354,17 +354,12 @@ func (h *Handler) GetSleepStatistics(c *gin.Context) {
 		return
 	}
 
-	sleepData, err := h.service.GetSleepAnalysis(startDate, endDate)
-	if err != nil {
-		c.JSON(http.StatusNotImplemented, gin.H{"error": "sleep analysis not yet implemented"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
+	// Note: This endpoint is deprecated, use /analysis/sleep instead
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error": "sleep statistics not yet implemented",
+		"hint":  "use /api/v1/health/analysis/sleep instead",
 		"startDate": startDate.Format("2006-01-02"),
 		"endDate":   endDate.Format("2006-01-02"),
-		"data":      sleepData,
-		"count":     len(sleepData),
 	})
 }
 
@@ -550,6 +545,17 @@ func (h *Handler) GetWeightBMIAnalysis(c *gin.Context) {
 // GetExerciseAnalysis handles GET /api/v1/health/analysis/exercise
 func (h *Handler) GetExerciseAnalysis(c *gin.Context) {
 	analysis, err := h.service.GetExerciseAnalysis()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
+}
+
+// GetSleepAnalysis handles GET /api/v1/health/analysis/sleep
+func (h *Handler) GetSleepAnalysis(c *gin.Context) {
+	analysis, err := h.service.GetSleepAnalysis()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

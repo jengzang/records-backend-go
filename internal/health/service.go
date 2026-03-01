@@ -139,12 +139,6 @@ func (s *Service) GetActivityPatterns() (map[string]interface{}, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-// GetSleepAnalysis retrieves sleep analysis data
-func (s *Service) GetSleepAnalysis(startDate, endDate time.Time) ([]SleepAnalysis, error) {
-	// TODO: Implement sleep analysis query
-	return nil, fmt.Errorf("not implemented")
-}
-
 // GetTrends analyzes trends for a specific metric
 func (s *Service) GetTrends(metricType string, period string) (map[string]interface{}, error) {
 	// TODO: Implement trend analysis
@@ -212,4 +206,9 @@ func (s *Service) GetWeightBMIAnalysis(startDate, endDate time.Time) (*analysis.
 // GetExerciseAnalysis retrieves exercise and activity data analysis
 func (s *Service) GetExerciseAnalysis() (*analysis.ExerciseAnalysis, error) {
 	return analysis.GetExerciseAnalysis(s.repo.db)
+}
+
+// GetSleepAnalysis retrieves sleep quality analysis
+func (s *Service) GetSleepAnalysis() (*analysis.SleepAnalysis, error) {
+	return analysis.GetSleepAnalysis(s.repo.db)
 }
