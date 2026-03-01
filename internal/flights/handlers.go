@@ -162,3 +162,149 @@ func (h *Handler) GetFlightRoute(c *gin.Context) {
 		"statistics":   flight.Statistics,
 	})
 }
+
+// SearchFlights searches flights with filters
+// GET /api/v1/flights/search
+func (h *Handler) SearchFlights(c *gin.Context) {
+	logger.Info("Searching flights", logrus.Fields{
+		"client_ip": c.ClientIP(),
+		"query":     c.Request.URL.RawQuery,
+	})
+
+	// Parse filters
+	filters := SearchFilters{
+		FlightNumber: c.Query("flightNumber"),
+		Airline:      c.Query("airline"),
+		DateFrom:     c.Query("dateFrom"),
+		DateTo:       c.Query("dateTo"),
+		SortBy:       c.DefaultQuery("sortBy", "flight_date"),
+		SortOrder:    c.DefaultQuery("sortOrder", "desc"),
+	}
+
+	// Parse numeric filters
+	if minDist := c.Query("minDistance"); minDist != "" {
+		if val, err := strconv.ParseFloat(minDist, 64); err == nil {
+			filters.MinDistance = val
+		}
+	}
+
+	if maxDist := c.Query("maxDistance"); maxDist != "" {
+		if val, err := strconv.ParseFloat(maxDist, 64); err == nil {
+			filters.MaxDistance = val
+		}
+	}
+
+	// Parse pagination
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	filters.Limit = pageSize
+	filters.Offset = (page - 1) * pageSize
+
+	// Search flights
+	flights, total, err := h.service.SearchFlights(filters)
+	if err != nil {
+		logger.Error("Failed to search flights", err, logrus.Fields{
+			"filters": filters,
+		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search flights"})
+		return
+	}
+
+	logger.Info("Flights search completed", logrus.Fields{
+		"result_count": len(flights),
+		"total":        total,
+		"page":         page,
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"flights": flights,
+		"pagination": gin.H{
+			"page":       page,
+			"pageSize":   pageSize,
+			"total":      total,
+			"totalPages": (total + pageSize - 1) / pageSize,
+		},
+		"filters": filters,
+	})
+}
+
+// GetAirlines returns all unique airlines
+// GET /api/v1/flights/airlines
+func (h *Handler) GetAirlines(c *gin.Context) {
+	logger.Info("Getting airlines list", logrus.Fields{
+		"client_ip": c.ClientIP(),
+	})
+
+	airlines, err := h.service.GetAirlines()
+	if err != nil {
+		logger.Error("Failed to get airlines", err, nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve airlines"})
+		return
+	}
+
+	logger.Info("Airlines retrieved", logrus.Fields{
+		"count": len(airlines),
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"airlines": airlines,
+		"count":    len(airlines),
+	})
+}
+
+// GetAirlineStatistics returns statistics grouped by airline
+// GET /api/v1/flights/statistics/airlines
+func (h *Handler) GetAirlineStatistics(c *gin.Context) {
+	logger.Info("Getting airline statistics", logrus.Fields{
+		"client_ip": c.ClientIP(),
+	})
+
+	stats, err := h.service.GetAirlineStatistics()
+	if err != nil {
+		logger.Error("Failed to get airline statistics", err, nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve statistics"})
+		return
+	}
+
+	logger.Info("Airline statistics retrieved", logrus.Fields{
+		"airline_count": len(stats),
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"airlines": stats,
+		"count":    len(stats),
+	})
+}
+
+// GetDateRange returns the date range of all flights
+// GET /api/v1/flights/date-range
+func (h *Handler) GetDateRange(c *gin.Context) {
+	logger.Info("Getting flight date range", logrus.Fields{
+		"client_ip": c.ClientIP(),
+	})
+
+	minDate, maxDate, err := h.service.GetDateRange()
+	if err != nil {
+		logger.Error("Failed to get date range", err, nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve date range"})
+		return
+	}
+
+	logger.Info("Date range retrieved", logrus.Fields{
+		"min_date": minDate,
+		"max_date": maxDate,
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"minDate": minDate,
+		"maxDate": maxDate,
+	})
+}

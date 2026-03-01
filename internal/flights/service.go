@@ -89,6 +89,34 @@ func (s *Service) GetSummary() (*FlightSummary, error) {
 	return s.repo.GetFlightSummary()
 }
 
+// SearchFlights searches flights with filters
+func (s *Service) SearchFlights(filters SearchFilters) ([]FlightWithStats, int, error) {
+	// Set default limit if not specified
+	if filters.Limit <= 0 {
+		filters.Limit = 20
+	}
+	if filters.Limit > 100 {
+		filters.Limit = 100
+	}
+
+	return s.repo.SearchFlights(filters)
+}
+
+// GetAirlines returns all unique airlines
+func (s *Service) GetAirlines() ([]string, error) {
+	return s.repo.GetAirlines()
+}
+
+// GetDateRange returns the date range of all flights
+func (s *Service) GetDateRange() (string, string, error) {
+	return s.repo.GetDateRange()
+}
+
+// GetAirlineStatistics returns statistics grouped by airline
+func (s *Service) GetAirlineStatistics() (map[string]AirlineStats, error) {
+	return s.repo.GetFlightsByAirline()
+}
+
 // calculateStatistics computes statistics from flight points
 func (s *Service) calculateStatistics(flightID int, points []FlightPoint) *FlightStatistics {
 	if len(points) == 0 {

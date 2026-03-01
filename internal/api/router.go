@@ -223,7 +223,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			flightsGroup := api.Group("/flights")
 			{
 				flightsGroup.GET("", flightsHandler.GetFlights)
+				flightsGroup.GET("/search", flightsHandler.SearchFlights)
 				flightsGroup.GET("/summary", flightsHandler.GetFlightSummary)
+				flightsGroup.GET("/airlines", flightsHandler.GetAirlines)
+				flightsGroup.GET("/date-range", flightsHandler.GetDateRange)
+				flightsGroup.GET("/statistics/airlines", flightsHandler.GetAirlineStatistics)
 				flightsGroup.GET("/:id", flightsHandler.GetFlight)
 				flightsGroup.GET("/:id/route", flightsHandler.GetFlightRoute)
 			}
