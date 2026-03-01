@@ -2,7 +2,6 @@ package railway
 
 import (
 	"database/sql"
-	"fmt"
 )
 
 type Repository struct {

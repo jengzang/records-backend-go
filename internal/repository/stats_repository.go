@@ -248,7 +248,12 @@ func (r *StatsRepository) GetFootprintRankings(filter models.StatsFilter) ([]mod
 
 // GetStayRankings retrieves stay statistics with rankings
 func (r *StatsRepository) GetStayRankings(filter models.StatsFilter) ([]models.StayStatistics, error) {
-	// Build query
+	// If stay_type filter is specified, query directly from stay_segments
+	if filter.StayType != "" && filter.StayType != "ALL" {
+		return r.getStayRankingsFromSegments(filter)
+	}
+
+	// Otherwise, use pre-computed stay_statistics table
 	query := `SELECT id, stat_type, stat_key, time_range,
 		province, city, county,
 		stay_count, total_duration_seconds, avg_duration_seconds, max_duration_seconds,
@@ -267,14 +272,6 @@ func (r *StatsRepository) GetStayRankings(filter models.StatsFilter) ([]models.S
 	if filter.TimeRange != "" {
 		conditions = append(conditions, "time_range = ?")
 		args = append(args, filter.TimeRange)
-	}
-
-	// Filter by stay_type if specified (requires JOIN with stay_segments)
-	// Note: This is a simplified approach. For production, consider adding stay_type to stay_statistics table
-	// or using a more complex query with aggregation from stay_segments
-	if filter.StayType != "" && filter.StayType != "ALL" {
-		// For now, we'll skip this filter since stay_statistics doesn't have stay_type
-		// TODO: Add stay_type column to stay_statistics table or aggregate from stay_segments
 	}
 
 	if len(conditions) > 0 {
@@ -317,6 +314,108 @@ func (r *StatsRepository) GetStayRankings(filter models.StatsFilter) ([]models.S
 			return nil, fmt.Errorf("failed to scan stay statistics: %w", err)
 		}
 		stats = append(stats, s)
+	}
+
+	return stats, nil
+}
+
+// getStayRankingsFromSegments aggregates stay rankings directly from stay_segments table
+// This is used when filtering by stay_type (SPATIAL, ADMIN_CITY, etc.)
+func (r *StatsRepository) getStayRankingsFromSegments(filter models.StatsFilter) ([]models.StayStatistics, error) {
+	// Determine which column to group by based on stat_type
+	var groupByColumn string
+	switch filter.StatType {
+	case "PROVINCE":
+		groupByColumn = "province"
+	case "CITY":
+		groupByColumn = "city"
+	case "COUNTY":
+		groupByColumn = "county"
+	case "TOWN":
+		groupByColumn = "town"
+	default:
+		return nil, fmt.Errorf("invalid stat_type: %s", filter.StatType)
+	}
+
+	// Build aggregation query
+	query := fmt.Sprintf(`
+		SELECT
+			%s as stat_key,
+			COUNT(*) as stay_count,
+			SUM(duration_s) as total_duration_seconds,
+			AVG(duration_s) as avg_duration_seconds,
+			MAX(duration_s) as max_duration_seconds
+		FROM stay_segments
+		WHERE stay_type = ? AND %s IS NOT NULL AND %s != ''
+		GROUP BY %s
+	`, groupByColumn, groupByColumn, groupByColumn, groupByColumn)
+
+	args := []interface{}{filter.StayType}
+
+	// Order by
+	orderBy := "stay_count DESC"
+	if filter.OrderBy == "duration" {
+		orderBy = "total_duration_seconds DESC"
+	}
+	query += " ORDER BY " + orderBy
+
+	// Limit
+	limit := 100
+	if filter.Limit > 0 && filter.Limit <= 1000 {
+		limit = filter.Limit
+	}
+	query += " LIMIT ?"
+	args = append(args, limit)
+
+	// Execute query
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query stay rankings from segments: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []models.StayStatistics
+	rank := 1
+	for rows.Next() {
+		var s models.StayStatistics
+		var statKey string
+		var totalDurationSeconds int64
+		var avgDurationSeconds float64
+		var maxDurationSeconds int64
+
+		err := rows.Scan(
+			&statKey,
+			&s.StayCount,
+			&totalDurationSeconds,
+			&avgDurationSeconds,
+			&maxDurationSeconds,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan stay ranking: %w", err)
+		}
+
+		// Populate the StayStatistics struct
+		s.StatType = filter.StatType
+		s.StatKey = statKey
+		s.TotalDurationSeconds = totalDurationSeconds
+		s.AvgDurationSeconds = avgDurationSeconds
+		s.MaxDurationSeconds = maxDurationSeconds
+		s.RankByCount = rank
+		s.RankByDuration = rank // Will be recalculated if ordering by duration
+		s.AlgoVersion = "realtime_v1"
+
+		// Set the appropriate location field
+		switch filter.StatType {
+		case "PROVINCE":
+			s.Province = statKey
+		case "CITY":
+			s.City = statKey
+		case "COUNTY":
+			s.County = statKey
+		}
+
+		stats = append(stats, s)
+		rank++
 	}
 
 	return stats, nil
