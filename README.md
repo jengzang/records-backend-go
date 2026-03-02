@@ -195,6 +195,48 @@ go-backend/
 
 **API 端点**: 15 个
 
+### 6. 跨模块分析 (Cross-Module) ✅ NEW
+
+**个人效率曲线 (Personal Efficiency Curve)**
+
+**核心功能**:
+- 跨模块数据整合 (键盘+屏幕时间+健康数据)
+- 24小时效率评分曲线
+  - 综合评分算法: 打字速度(30%) + 工作应用比例(20%) + HRV(20%) + 专注度(15%) + 活动量(15%)
+  - 小时级效率评分 (0-100)
+  - 数据完整性追踪
+- 效率曲线画像
+  - 工作日/周末聚合曲线
+  - 峰值时段自动检测
+  - 生物钟类型分类 (早晨型/夜猫子型/中间型)
+- 工作日vs周末对比
+  - 平均效率差异分析
+  - 24小时逐时对比
+  - 自动生成解读建议
+- 可操作洞察
+  - 峰值生产力时段建议
+  - 生物钟类型建议
+  - 个性化改进建议
+
+**技术特点**:
+- 智能数据分配 (键盘每日数据分配到活跃时段)
+- 精确时间重叠计算 (屏幕时间会话毫秒级)
+- 分段线性归一化 (支持最优值设定)
+- 跨数据库查询 (同时访问3个SQLite数据库)
+- 数据缺失容错 (data_completeness标记)
+
+**API 端点**: 5 个
+- GET /api/v1/cross-module/efficiency-curve/hourly - 获取小时效率曲线
+- GET /api/v1/cross-module/efficiency-curve/profile - 获取效率画像
+- GET /api/v1/cross-module/efficiency-curve/comparison - 工作日vs周末对比
+- GET /api/v1/cross-module/efficiency-curve/insights - 获取效率洞察
+- POST /api/v1/cross-module/efficiency-curve/analyze - 触发效率分析
+
+**数据库表**: 3 个
+- hourly_efficiency_scores - 小时效率评分
+- efficiency_curve_profiles - 效率曲线画像
+- efficiency_insights - 效率洞察
+
 ## 运行方式
 
 ### 前置要求
@@ -472,6 +514,68 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
 ## 更新日志
+
+### 2026-03-02 (晚上) - Phase 4.1: 个人效率曲线功能 ✅
+
+**重大功能：跨模块数据整合与效率分析**
+
+**新增功能：个人效率曲线 (Personal Efficiency Curve)**
+
+1. **跨模块数据整合**
+   - 整合键盘、屏幕时间、健康数据
+   - 同时访问3个SQLite数据库
+   - 智能数据获取和归一化
+
+2. **24小时效率评分**
+   - 综合评分算法: 打字速度(30%) + 工作应用比例(20%) + HRV(20%) + 专注度(15%) + 活动量(15%)
+   - 小时级效率评分 (0-100)
+   - 数据完整性追踪 (data_completeness)
+
+3. **效率曲线画像**
+   - 工作日/周末聚合曲线
+   - 峰值时段自动检测
+   - 生物钟类型分类 (早晨型/夜猫子型/中间型)
+   - 置信度评分
+
+4. **工作日vs周末对比**
+   - 平均效率差异分析
+   - 24小时逐时对比
+   - 峰值时段差异
+   - 自动生成解读建议
+
+5. **可操作洞察**
+   - 峰值生产力时段建议
+   - 生物钟类型建议
+   - 个性化改进建议
+   - 优先级分级 (低/中/高)
+
+**技术实现**:
+- 新增 5 个 API 端点
+- 新增 3 个数据库表
+- 新增 6 个 Go 模块文件 (1,500行代码)
+- 智能数据分配算法
+- 分段线性归一化算法
+- 峰值时段检测算法
+- 生物钟分类算法
+
+**数据库变更**:
+- 新增表: hourly_efficiency_scores (小时效率评分)
+- 新增表: efficiency_curve_profiles (效率曲线画像)
+- 新增表: efficiency_insights (效率洞察)
+- 迁移文件: scripts/applehealth/migrations/002_create_efficiency_curve_tables.sql
+
+**前端集成**:
+- 效率曲线仪表盘 (24小时雷达图)
+- 工作日vs周末对比页面 (折线图+柱状图)
+- TypeScript类型定义 (完整类型安全)
+- API服务层封装 (665行代码)
+
+**文档**:
+- 完整功能文档 (docs/efficiency-curve/README.md)
+- 实施报告 (Day 1-4)
+- 最终项目报告 (FINAL_REPORT.md)
+
+**总计**: 118+ API 端点，跨模块分析能力全面提升
 
 ### 2026-03-02 (深夜) - 跨模块关联分析与文档更新 ✨
 
