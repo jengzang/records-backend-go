@@ -3,7 +3,6 @@ package efficiency
 import (
 	"database/sql"
 	"fmt"
-	"math"
 	"time"
 )
 
@@ -87,7 +86,7 @@ func (s *Service) fetchScreenTimeData(date string, hour int) (*ScreenTimeMetrics
 	var entertainmentDuration int64
 	var sessionCount int
 	var focusSessions int
-	var lastEndTime int64
+	_ = focusSessions // Mark as intentionally unused for now
 
 	for rows.Next() {
 		var sessionStart, sessionEnd int64
@@ -116,8 +115,6 @@ func (s *Service) fetchScreenTimeData(date string, hour int) (*ScreenTimeMetrics
 			if overlapDuration > 30*60*1000 {
 				focusSessions++
 			}
-
-			lastEndTime = sessionEnd
 		}
 	}
 
