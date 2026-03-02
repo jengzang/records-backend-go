@@ -409,14 +409,33 @@ HEALTH_DB_PATH=./data/health.db         # 健康数据库路径
 
 ### Apple健康数据接口 (Health)
 
-- `GET /api/v1/health/heart-rate/analysis` - 心率分析
-- `GET /api/v1/health/heart-rate/daily` - 每日心率
-- `GET /api/v1/health/heart-rate/weekly` - 每周心率
-- `GET /api/v1/health/heart-rate/monthly` - 每月心率
-- `GET /api/v1/health/heart-rate/trends` - 心率趋势
-- `GET /api/v1/health/weight-bmi` - 体重BMI分析
-- `GET /api/v1/health/exercise` - 运动数据分析
-- `GET /api/v1/health/sleep` - 睡眠质量分析
+**基础查询**:
+- `GET /api/v1/health/summary` - 健康数据摘要
+- `GET /api/v1/health/records` - 健康记录查询
+- `GET /api/v1/health/workouts` - 运动记录查询
+
+**统计分析**:
+- `GET /api/v1/health/statistics/daily` - 每日统计
+- `GET /api/v1/health/statistics/weekly` - 每周统计
+- `GET /api/v1/health/statistics/monthly` - 每月统计
+- `GET /api/v1/health/statistics/trends` - 趋势分析
+
+**高级分析**:
+- `GET /api/v1/health/analysis/exercise` - 运动数据分析 ✅
+- `GET /api/v1/health/analysis/sleep` - 睡眠质量分析 ✅
+- `GET /api/v1/health/analysis/rankings` - 健康排行榜 ✨ NEW
+- `GET /api/v1/health/analysis/weight-bmi` - 体重BMI分析
+- `GET /api/v1/health/analysis/seasonal-trends` - 季节趋势
+- `GET /api/v1/health/analysis/health-screentime-correlation` - 健康×屏幕时间关联
+
+**心率分析**:
+- `GET /api/v1/health/analysis/heartrate/zones` - 心率区间分析
+- `GET /api/v1/health/analysis/heartrate/anomalies` - 心率异常检测
+- `GET /api/v1/health/analysis/heartrate/resting` - 静息心率分析
+
+**活动模式**:
+- `GET /api/v1/health/analysis/patterns/daily` - 每日活动模式
+- `GET /api/v1/health/analysis/patterns/weekly` - 每周活动模式
 
 ## 数据库架构
 
@@ -515,6 +534,62 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
 ## 更新日志
+
+### 2026-03-02 (深夜) - AppleHealth模块功能完成 ✅
+
+**阶段2完成：AppleHealth模块增强 (3个功能)**
+
+**Phase 2.1: 运动数据分析** ✅ (已存在)
+- 步数/距离/爬楼统计（日/周/月趋势）
+- 运动类型分布分析
+- 卡路里消耗趋势
+- METs强度分析
+- 运动成就检测
+- 个性化建议生成
+
+**Phase 2.2: 睡眠质量分析** ✅ (已存在)
+- 睡眠时长趋势（深睡/浅睡/REM）
+- 入睡/起床时间规律性
+- 睡眠质量评分算法
+- 睡眠与心率关联分析
+- 睡眠效率计算
+- 睡眠债务追踪
+
+**Phase 2.3: 健康排行榜** ✨ NEW
+1. **6种排行榜 (Top 20)**
+   - 步数排行榜
+   - 距离排行榜
+   - 卡路里排行榜
+   - 心率排行榜（最低静息心率）
+   - 睡眠排行榜（最长睡眠）
+   - 运动排行榜（最长运动时长）
+
+2. **个人最佳记录 (7项)**
+   - 最高步数、最远距离、最高卡路里
+   - 最低静息心率、最长睡眠、最长运动
+   - 单日最多运动次数
+
+3. **排行榜统计**
+   - 总追踪天数
+   - Top 10天数占比
+   - 当前连续天数（≥5000步）
+   - 最长连续天数
+   - 改进趋势（improving/stable/declining）
+
+4. **前端实现**
+   - Rankings.tsx 页面组件
+   - Ant Design Table + Tabs 展示
+   - 前三名特殊图标（金银铜牌）
+   - 当月记录自动标记
+
+**技术实现**:
+- 新增文件: internal/health/analysis/rankings.go (555行)
+- API端点: GET /api/v1/health/analysis/rankings
+- 前端页面: src/pages/Rankings.tsx (352行)
+- 连续天数算法: 基于5000步阈值
+- 趋势分析: 30天滚动窗口对比
+
+**AppleHealth模块状态**: 100% 完成 ✅
 
 ### 2026-03-02 (深夜) - ScreenTime模块功能增强 ✅
 
