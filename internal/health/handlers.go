@@ -591,4 +591,14 @@ func (h *Handler) GetHealthScreentimeCorrelation(c *gin.Context) {
 	c.JSON(http.StatusOK, correlation)
 }
 
+// GetHealthRankings handles GET /api/v1/health/analysis/rankings
+func (h *Handler) GetHealthRankings(c *gin.Context) {
+	rankings, err := h.service.GetHealthRankings()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, rankings)
+}
 

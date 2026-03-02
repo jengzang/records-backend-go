@@ -232,4 +232,8 @@ func (s *Service) GetHealthScreentimeCorrelation() (*analysis.HealthScreentimeCo
 	return analysis.GetHealthScreentimeCorrelation(s.repo.db, s.screentimeDB)
 }
 
+// GetHealthRankings retrieves health data rankings and personal bests
+func (s *Service) GetHealthRankings() (*analysis.HealthRankings, error) {
+	return analysis.GetHealthRankings(s.repo.db)
+}
 
