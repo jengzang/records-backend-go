@@ -437,6 +437,26 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				} else {
 					logger.Warn("Efficiency curve analysis not available - missing required databases", logrus.Fields{})
 				}
+
+				// Location Behavior Analysis
+				if db != nil && keyboardDB != nil && screentimeDB != nil && healthDB != nil {
+					locationBehaviorService := service.NewLocationBehaviorService(db, keyboardDB, screentimeDB, healthDB)
+					locationBehaviorHandler := handler.NewLocationBehaviorHandler(locationBehaviorService)
+
+					locationBehavior := crossModule.Group("/location-behavior")
+					{
+						locationBehavior.GET("/locations", locationBehaviorHandler.GetLocations)
+						locationBehavior.GET("/locations/:id", locationBehaviorHandler.GetLocationByID)
+						locationBehavior.GET("/rankings", locationBehaviorHandler.GetRankings)
+						locationBehavior.GET("/heatmap", locationBehaviorHandler.GetHeatmapData)
+						locationBehavior.GET("/habits", locationBehaviorHandler.GetHabits)
+						locationBehavior.POST("/analyze", locationBehaviorHandler.AnalyzeLocations)
+						locationBehavior.PATCH("/locations/:id", locationBehaviorHandler.UpdateLocationLabel)
+					}
+					logger.Info("Location behavior cross-module analysis initialized", logrus.Fields{})
+				} else {
+					logger.Warn("Location behavior analysis not available - missing required databases", logrus.Fields{})
+				}
 			}
 		}
 
