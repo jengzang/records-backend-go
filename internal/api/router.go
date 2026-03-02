@@ -363,6 +363,17 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			// Initialize health module
 			healthHandler := health.NewHandler(healthDB)
 
+			// Set screentime database for cross-module analysis
+			screentimeDB, err := database.OpenDB(cfg.ScreentimeDBPath)
+			if err == nil {
+				healthHandler.SetScreentimeDB(screentimeDB)
+				logger.Info("Screentime database connected for health cross-module analysis", logrus.Fields{})
+			} else {
+				logger.Warn("Screentime database not available for cross-module analysis", logrus.Fields{
+					"error": err.Error(),
+				})
+			}
+
 			// Register routes
 			healthGroup := api.Group("/health")
 			{
@@ -387,6 +398,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				healthGroup.GET("/analysis/exercise", healthHandler.GetExerciseAnalysis)
 				healthGroup.GET("/analysis/sleep", healthHandler.GetSleepAnalysis)
 				healthGroup.GET("/analysis/seasonal-trends", healthHandler.GetSeasonalTrends)
+				healthGroup.GET("/analysis/health-screentime-correlation", healthHandler.GetHealthScreentimeCorrelation)
 
 				// Heart rate analysis
 				healthGroup.GET("/analysis/heartrate/zones", healthHandler.GetHeartRateZones)

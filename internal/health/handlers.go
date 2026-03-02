@@ -21,6 +21,11 @@ func NewHandler(db *sql.DB) *Handler {
 	}
 }
 
+// SetScreentimeDB sets the screentime database for cross-module analysis
+func (h *Handler) SetScreentimeDB(db *sql.DB) {
+	h.service.SetScreentimeDB(db)
+}
+
 // GetSummary handles GET /api/v1/health/summary
 func (h *Handler) GetSummary(c *gin.Context) {
 	summary, err := h.service.GetSummary()
@@ -574,4 +579,16 @@ func (h *Handler) GetSeasonalTrends(c *gin.Context) {
 
 	c.JSON(http.StatusOK, trends)
 }
+
+// GetHealthScreentimeCorrelation handles GET /api/v1/health/analysis/health-screentime-correlation
+func (h *Handler) GetHealthScreentimeCorrelation(c *gin.Context) {
+	correlation, err := h.service.GetHealthScreentimeCorrelation()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, correlation)
+}
+
 

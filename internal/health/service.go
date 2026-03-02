@@ -14,6 +14,7 @@ type Service struct {
 	hrAnalyzer        *analysis.HeartRateAnalyzer
 	patternAnalyzer   *analysis.PatternAnalyzer
 	healthScoreCalc   *analysis.HealthScoreCalculator
+	screentimeDB      *sql.DB // For cross-module analysis
 }
 
 // NewService creates a new health service
@@ -24,6 +25,11 @@ func NewService(db *sql.DB) *Service {
 		patternAnalyzer: analysis.NewPatternAnalyzer(db),
 		healthScoreCalc: analysis.NewHealthScoreCalculator(db),
 	}
+}
+
+// SetScreentimeDB sets the screentime database for cross-module analysis
+func (s *Service) SetScreentimeDB(db *sql.DB) {
+	s.screentimeDB = db
 }
 
 // GetSummary retrieves overall health data summary
@@ -217,4 +223,13 @@ func (s *Service) GetSleepAnalysis() (*analysis.SleepAnalysis, error) {
 func (s *Service) GetSeasonalTrends() (*analysis.SeasonalTrends, error) {
 	return analysis.GetSeasonalTrends(s.repo.db)
 }
+
+// GetHealthScreentimeCorrelation retrieves health and screentime correlation analysis
+func (s *Service) GetHealthScreentimeCorrelation() (*analysis.HealthScreentimeCorrelation, error) {
+	if s.screentimeDB == nil {
+		return nil, fmt.Errorf("screentime database not configured")
+	}
+	return analysis.GetHealthScreentimeCorrelation(s.repo.db, s.screentimeDB)
+}
+
 
