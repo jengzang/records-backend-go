@@ -399,6 +399,7 @@ HEALTH_DB_PATH=./data/health.db         # 健康数据库路径
 - `GET /api/v1/screentime/analysis/switching-pattern` - 切换模式分析
 - `GET /api/v1/screentime/analysis/late-night` - 深夜使用习惯分析 ✨ NEW
 - `GET /api/v1/screentime/analysis/app-correlation` - 应用使用相关性分析 ✨ NEW
+- `GET /api/v1/screentime/analysis/usage-heatmap` - 应用使用热力图 ✨ NEW
 
 **跨设备分析**:
 - `GET /api/v1/screentime/cross-device/comparison` - 设备对比
@@ -514,6 +515,38 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
 ## 更新日志
+
+### 2026-03-02 (深夜) - ScreenTime模块功能增强 ✅
+
+**新增功能：应用使用热力图 (Usage Heatmap)**
+
+1. **日期×小时热力图**
+   - 可视化应用使用强度分布
+   - 支持自定义日期范围查询（默认最近30天）
+   - 归一化强度值（0-1）用于前端渲染
+
+2. **统计指标**
+   - 最大/最小/平均使用时长
+   - 总单元格数统计
+   - 日期范围追踪
+
+3. **API端点**
+   - `GET /api/v1/screentime/analysis/usage-heatmap?start=20240101&end=20241231`
+
+**ScreenTime模块功能总结**:
+- ✅ 时间浪费检测 (工作时间娱乐、深夜社交、碎片化使用)
+- ✅ 应用依赖度分析 (依赖评分、使用频率、连续天数)
+- ✅ 周末vs工作日对比 (使用模式、类别分布、时段分布)
+- ✅ 生产力/娱乐比例趋势 (周/月/季度趋势)
+- ✅ 应用切换模式识别 (多任务/专注/碎片化模式)
+- ✅ 深夜使用习惯分析 (睡眠影响评估)
+- ✅ 应用使用相关性分析 (共现分析、关联规则)
+- ✅ 应用使用热力图 (日期×小时可视化)
+
+**技术实现**:
+- 新增文件: internal/screentime/usage_heatmap.go
+- 修复 efficiency 模块编译错误
+- 所有8个高级分析功能已完成
 
 ### 2026-03-02 (晚上) - Phase 4.1: 个人效率曲线功能 ✅
 
