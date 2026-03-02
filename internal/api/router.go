@@ -409,6 +409,33 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				healthGroup.GET("/analysis/patterns/daily", healthHandler.GetDailyActivityPattern)
 				healthGroup.GET("/analysis/patterns/weekly", healthHandler.GetWeeklyActivityPattern)
 			}
+
+			// Cross-module analysis (Efficiency Curve)
+			crossModule := api.Group("/cross-module")
+			{
+				// Initialize efficiency handler
+				keyboardDB, err := database.OpenDB(cfg.KeyboardDBPath)
+				if err != nil {
+					logger.Error("Failed to open keyboard database for efficiency analysis", err, logrus.Fields{
+						"db_path": cfg.KeyboardDBPath,
+					})
+				}
+
+				screentimeDB, err := database.OpenDB(cfg.ScreentimeDBPath)
+				if err != nil {
+					logger.Error("Failed to open screentime database for efficiency analysis", err, logrus.Fields{
+						"db_path": cfg.ScreentimeDBPath,
+					})
+				}
+
+				if healthDB != nil && keyboardDB != nil && screentimeDB != nil {
+					efficiencyHandler := health.NewEfficiencyHandler(healthDB, keyboardDB, screentimeDB)
+					efficiencyHandler.RegisterRoutes(crossModule)
+					logger.Info("Efficiency curve cross-module analysis initialized", logrus.Fields{})
+				} else {
+					logger.Warn("Efficiency curve analysis not available - missing required databases", logrus.Fields{})
+				}
+			}
 		}
 
 		// 管理员接口
