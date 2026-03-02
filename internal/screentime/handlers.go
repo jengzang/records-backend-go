@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "modernc.org/sqlite"
@@ -576,6 +577,27 @@ func (h *Handler) GetLateNightUsageAnalysisHandler(c *gin.Context) {
 // GET /api/v1/screentime/analysis/app-correlation
 func (h *Handler) GetAppCorrelationAnalysisHandler(c *gin.Context) {
 	analysis, err := h.GetAppCorrelationAnalysis()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
+}
+
+// GetFocusDepthAnalysisHandler returns deep focus analysis
+// GET /api/v1/screentime/analysis/focus-depth
+func (h *Handler) GetFocusDepthAnalysisHandler(c *gin.Context) {
+	startDate := c.DefaultQuery("start", "")
+	endDate := c.DefaultQuery("end", "")
+
+	// If no dates provided, use last 30 days
+	if startDate == "" || endDate == "" {
+		endDate = time.Now().Format("2006-01-02")
+		startDate = time.Now().AddDate(0, 0, -30).Format("2006-01-02")
+	}
+
+	analysis, err := h.GetFocusDepthAnalysis(startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
