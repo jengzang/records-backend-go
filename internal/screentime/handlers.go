@@ -583,3 +583,4 @@ func (h *Handler) GetAppCorrelationAnalysisHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, analysis)
 }
+

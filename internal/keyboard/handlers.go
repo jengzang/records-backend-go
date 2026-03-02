@@ -55,6 +55,12 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		keyboard.GET("/statistics/weekday_weekend", h.GetWeekdayWeekendComparison)
 		keyboard.GET("/cross_module", h.GetCrossModuleAnalysis)
 
+		// Analysis endpoints
+		analysis := keyboard.Group("/analysis")
+		{
+			analysis.GET("/keyboard-health-correlation", h.GetKeyboardHealthCorrelation)
+		}
+
 		// Visualization data endpoints
 		keyboard.GET("/heatmap/keyboard", h.GetKeyboardHeatmap)
 		keyboard.GET("/heatmap/detailed", h.GetDetailedKeyboardHeatmap)
@@ -762,3 +768,26 @@ func (h *Handler) GetCrossModuleAnalysis(c *gin.Context) {
 
 	c.JSON(http.StatusOK, analysis)
 }
+
+// GetKeyboardHealthCorrelation returns keyboard-health correlation analysis
+// GET /api/v1/keyboard/analysis/keyboard-health-correlation
+func (h *Handler) GetKeyboardHealthCorrelation(c *gin.Context) {
+	// Get health database path from config
+	healthDBPath := "data/health.db"
+
+	healthDB, err := sql.Open("sqlite", healthDBPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open health database"})
+		return
+	}
+	defer healthDB.Close()
+
+	correlation, err := analysis.GetKeyboardHealthCorrelation(h.db, healthDB)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, correlation)
+}
+
