@@ -316,6 +316,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 					analysis.GET("/app-correlation", screentimeHandler.GetAppCorrelationAnalysisHandler)
 					analysis.GET("/usage-heatmap", screentimeHandler.GetUsageHeatmap)
 					analysis.GET("/focus-depth", screentimeHandler.GetFocusDepthAnalysisHandler)
+					analysis.GET("/focus-comparison", screentimeHandler.GetFocusComparisonAnalysisHandler)
 				}
 
 				// Cross-device analysis endpoints (if device manager is available)

@@ -606,3 +606,24 @@ func (h *Handler) GetFocusDepthAnalysisHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, analysis)
 }
 
+// GetFocusComparisonAnalysisHandler returns focus comparison analysis
+// GET /api/v1/screentime/analysis/focus-comparison
+func (h *Handler) GetFocusComparisonAnalysisHandler(c *gin.Context) {
+	startDate := c.DefaultQuery("start", "")
+	endDate := c.DefaultQuery("end", "")
+
+	// If no dates provided, use last 90 days for better comparison
+	if startDate == "" || endDate == "" {
+		endDate = time.Now().Format("2006-01-02")
+		startDate = time.Now().AddDate(0, 0, -90).Format("2006-01-02")
+	}
+
+	analysis, err := h.GetFocusComparisonAnalysis(startDate, endDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
+}
+
